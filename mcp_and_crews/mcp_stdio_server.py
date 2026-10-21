@@ -1,4 +1,4 @@
-"""FastMCP stdio server with five tools and two knowledge resources."""
+"""FastMCP stdio server with nine tools and two knowledge resources."""
 
 from __future__ import annotations
 
