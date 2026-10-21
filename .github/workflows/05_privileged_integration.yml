@@ -1,0 +1,50 @@
+name: "05 · Isolated privileged workflow integration"
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: "Which end-to-end sandbox scenario to run"
+        required: true
+        type: choice
+        options:
+          - architect_only
+          - full_pipeline
+
+# This runner can create issues and approval labels in a disposable test repository.
+# It has no write permission in the source repository and never uses pull_request_target.
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    if: github.ref == 'refs/heads/main' && github.actor == github.repository_owner
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    env:
+      GH_TOKEN: ${{ secrets.VERITY_AUTONOMOUS_OS_TEST_TOKEN }}
+      TARGET_REPOSITORY: ${{ vars.VERITY_AUTONOMOUS_OS_TEST_REPO }}
+      GITHUB_REPOSITORY: ${{ github.repository }}
+      GITHUB_RUN_ID: ${{ github.run_id }}
+      SCENARIO: ${{ inputs.scenario }}
+    steps:
+      - name: Check out reviewed integration harness
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Validate sandbox configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$GH_TOKEN" || { echo "::error::Configure secret VERITY_AUTONOMOUS_OS_TEST_TOKEN."; exit 1; }
+          test -n "$TARGET_REPOSITORY" || { echo "::error::Configure variable VERITY_AUTONOMOUS_OS_TEST_REPO."; exit 1; }
+          if [[ "$TARGET_REPOSITORY" == "$GITHUB_REPOSITORY" ]]; then
+            echo "::error::Refusing to target the production/source repository."
+            exit 1
+          fi
+          if [[ ! "$TARGET_REPOSITORY" =~ ^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$ ]]; then
+            echo "::error::Target must be a repository in owner/name format."
+            exit 1
+          fi
+      - name: Run real issue-to-blueprint and approval-to-PR scenario
+        run: node scripts/privileged_workflow_integration.mjs
