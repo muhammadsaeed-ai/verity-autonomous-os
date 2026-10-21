@@ -10,7 +10,12 @@ from typing import Any
 from fastmcp import FastMCP
 
 from mcp_and_crews.run_architect import build_blueprint
-from mcp_and_crews.mission_engine import (\n    analyze_mission_dag, assess_mission_readiness, resolve_mission_frontier, verify_artifact_manifest\n)
+from mcp_and_crews.mission_engine import (
+    analyze_mission_dag,
+    assess_mission_readiness,
+    resolve_mission_frontier,
+    verify_artifact_manifest,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
