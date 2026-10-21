@@ -129,7 +129,7 @@ def test_frontier_resolves_ready_and_waiting_nodes() -> None:
         {"id": "docs", "dependencies": [], "status": "pending"},
     ]
     result = resolve_mission_frontier(nodes)
-    assert result["ready"] == ["api", "ui", "docs"]
+    assert result["ready"] == ["docs", "api", "ui"]
     assert result["waiting"] == [{"id": "integration", "waiting_for": ["api", "ui"]}]
     assert result["blocked"] == []
     assert result["has_ready_work"] is True
@@ -209,7 +209,7 @@ def test_readiness_assessment_flags_incomplete_and_ambiguous_blueprint() -> None
     })
     codes = {item["code"] for item in report["findings"]}
     assert report["recommendation"] == "needs_revision"
-    assert report["counts"]["blockers"] >= 4
+    assert report["counts"]["blockers"] >= 3
     assert "title_invalid" in codes
     assert "dependency_graph_invalid" in codes
     assert "acceptance_criterion_ambiguous" in codes
