@@ -10,7 +10,12 @@ import sys
 from pathlib import Path
 
 from mcp_and_crews.code_generator import generate_candidate, validate_source
-from mcp_and_crews.mission_engine import analyze_mission_dag, verify_artifact_manifest, write_artifact_manifest
+from mcp_and_crews.mission_engine import (
+    analyze_mission_dag,
+    assess_mission_readiness,
+    verify_artifact_manifest,
+    write_artifact_manifest,
+)
 from mcp_and_crews.run_architect import dashboard_snapshot
 from mcp_and_crews.schemas import DAGNode, MissionBlueprint, MissionState, utc_now
 
@@ -182,6 +187,13 @@ def run_builder(
         encoding="utf-8",
     )
 
+    readiness_report = assess_mission_readiness(blueprint.model_dump(mode="json"))
+    readiness_path = output / "mission_readiness.json"
+    readiness_path.write_text(
+        json.dumps(readiness_report, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
     runbook = [
         "# Generated Mission Package", "",
         "**Mission:** " + blueprint.title, "",
@@ -201,6 +213,13 @@ def run_builder(
         "- Critical path: " + " → ".join(schedule["critical_path"]),
     ])
     runbook.extend([
+        "", "## Mission readiness assessment", "",
+        "- Score: " + str(readiness_report["score"]) + "/100",
+        "- Recommendation: " + readiness_report["recommendation"],
+        "- Blockers: " + str(readiness_report["counts"]["blockers"]),
+        "- Warnings: " + str(readiness_report["counts"]["warnings"]),
+        "",
+        "This deterministic policy is a review triage aid, not proof of correctness. See mission_readiness.json for rule IDs and findings.",
         "", "## Safety boundary", "",
         "The trusted mission runner emits a validation manifest. It does not execute mission_solution.py, deploy services, "
         "contact external systems, or run shell commands supplied by an issue. Static AST checks are defense-in-depth, "
@@ -235,6 +254,7 @@ def run_builder(
             {"name": "candidate_syntax", "result": "passed", "detail": "Candidate compiled without execution."},
             {"name": "trusted_runner", "result": "passed", "detail": "Only the trusted inspection runner was executed."},
             {"name": "inspection_manifest", "result": "passed", "detail": "Runner output matches the mission ID and declares task logic unexecuted."},
+            {"name": "mission_readiness_policy", "result": readiness_report["recommendation"], "detail": "See mission_readiness.json; rule-based triage does not replace human review."},
             {"name": "generated_candidate_execution", "result": "not_run_by_design", "detail": "Model-generated candidate was not executed."},
         ],
     }
@@ -254,6 +274,7 @@ def run_builder(
         Path("output/mission.json"),
         Path("output/README.md"),
         Path("output/mission_schedule.json"),
+        Path("output/mission_readiness.json"),
         Path("output/verification_report.json"),
     ]
     artifact_manifest_path = output / "artifact_manifest.json"
@@ -284,6 +305,7 @@ def run_builder(
         (output / "mission.json").as_posix(),
         (output / "README.md").as_posix(),
         schedule_path.as_posix(),
+        readiness_path.as_posix(),
         verification_report_path.as_posix(),
         artifact_manifest_path.as_posix(),
     ]

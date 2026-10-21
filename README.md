@@ -57,6 +57,7 @@ The Builder writes these files under the mission-specific output directory:
 - **mission_runner.py** — a trusted inspection utility that produces a manifest and does not execute the implementation candidate.
 - **architecture.svg**, **mission.json**, and **README.md** — the visual DAG, validated mission contract, and package documentation.
 - **mission_schedule.json** — deterministic topological waves, estimated critical path, ready set, dependency-edge count, and theoretical parallelism metrics. These are plan estimates; they do not execute tasks concurrently.
+- **mission_readiness.json** — deterministic mission readiness score with rule-coded blockers, warnings, and review recommendations.
 - **verification_report.json** — machine-readable checks and an explicit record that generated candidate execution was intentionally skipped.
 - **artifact_manifest.json** — SHA-256 digests, sizes, and a canonical ledger seal for the blueprint and generated package files.
 
@@ -108,6 +109,8 @@ Tools:
 - mission_state — read repository-local state while rejecting path traversal.
 - svg_architecture_spec — create an SVG flow preview from node names.
 - mission_schedule — validate and analyze a bounded dependency graph, returning deterministic parallel waves and critical-path metrics.
+- mission_frontier — identify runnable nodes, waiting dependencies, propagated blockers, and terminal mission state.
+- mission_readiness — assess scope, acceptance criteria, dependency integrity, constraints, and risks with deterministic review findings.
 - mission_artifact_integrity — verify a locally generated mission’s SHA-256 artifact ledger without executing generated files.
 
 Resources:
@@ -155,7 +158,7 @@ pyproject.toml
 
 ## Verification model
 
-The CI suite checks the public API registry, knowledge base, issue form and workflow YAML, dashboard JSON, five MCP tools, repository path restrictions, SVG escaping, and a real stdio initialize/tools-list handshake. It also runs Architect → Builder end-to-end in deterministic mode, tests the generated-code screening rules and provider-error redaction, verifies privileged workflow authorization and immutable action pins, exercises deterministic DAG scheduling, detects artifact tampering and path traversal, verifies the MCP tool surface, compiles generated Python, and executes only the trusted inspection runner.
+The CI suite checks the public API registry, knowledge base, issue form and workflow YAML, dashboard JSON, nine MCP tools, repository path restrictions, SVG escaping, and a real stdio initialize/tools-list handshake. It also runs Architect → Builder end-to-end in deterministic mode, tests the generated-code screening rules and provider-error redaction, verifies privileged workflow authorization and immutable action pins, exercises deterministic DAG scheduling, live dependency-frontier resolution, mission-readiness assessments, detects artifact tampering and path traversal, verifies the MCP tool surface, compiles generated Python, and executes only the trusted inspection runner.
 
 The latest hosted GitHub Actions result is the source of truth for a commit. A successful pipeline means package generation and verification passed; it does not certify external API uptime or mission-specific production logic.
 

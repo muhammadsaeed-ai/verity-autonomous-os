@@ -9,6 +9,8 @@ import pytest
 
 from mcp_and_crews.mission_engine import (
     analyze_mission_dag,
+    assess_mission_readiness,
+    resolve_mission_frontier,
     verify_artifact_manifest,
     write_artifact_manifest,
 )
@@ -116,3 +118,101 @@ def test_artifact_manifest_detects_missing_files(tmp_path: Path) -> None:
     checked = verify_artifact_manifest(tmp_path)
     assert checked["valid"] is False
     assert any("blueprint.json" in error for error in checked["errors"])
+
+
+def test_frontier_resolves_ready_and_waiting_nodes() -> None:
+    nodes = [
+        {"id": "input", "dependencies": [], "status": "completed"},
+        {"id": "api", "dependencies": ["input"], "status": "pending"},
+        {"id": "ui", "dependencies": ["input"], "status": "pending"},
+        {"id": "integration", "dependencies": ["api", "ui"], "status": "pending"},
+        {"id": "docs", "dependencies": [], "status": "pending"},
+    ]
+    result = resolve_mission_frontier(nodes)
+    assert result["ready"] == ["docs", "api", "ui"]
+    assert result["waiting"] == [{"id": "integration", "waiting_for": ["api", "ui"]}]
+    assert result["blocked"] == []
+    assert result["has_ready_work"] is True
+    assert result["recommendation"] == "run_ready_nodes"
+
+
+def test_frontier_propagates_failure_to_downstream_nodes() -> None:
+    nodes = [
+        {"id": "root", "dependencies": [], "status": "failed"},
+        {"id": "child", "dependencies": ["root"], "status": "pending"},
+        {"id": "grandchild", "dependencies": ["child"], "status": "pending"},
+    ]
+    result = resolve_mission_frontier(nodes)
+    assert result["effective_statuses"] == {
+        "root": "failed", "child": "blocked", "grandchild": "blocked"
+    }
+    assert [item["id"] for item in result["blocked"]] == ["child", "grandchild"]
+    assert result["healthy"] is False
+    assert result["terminal"] is True
+    assert result["recommendation"] == "investigate_blockers"
+
+
+def test_frontier_requires_completed_dependencies_for_running_or_completed_nodes() -> None:
+    nodes = [
+        {"id": "root", "dependencies": [], "status": "pending"},
+        {"id": "child", "dependencies": ["root"], "status": "completed"},
+    ]
+    with pytest.raises(ValueError, match="dependencies are not completed"):
+        resolve_mission_frontier(nodes)
+
+
+def test_frontier_reports_successful_terminal_mission() -> None:
+    result = resolve_mission_frontier([
+        {"id": "root", "dependencies": [], "status": "completed"},
+        {"id": "child", "dependencies": ["root"], "status": "completed"},
+    ])
+    assert result["terminal"] is True
+    assert result["healthy"] is True
+    assert result["recommendation"] == "mission_complete"
+
+
+def test_frontier_rejects_invalid_state_status() -> None:
+    with pytest.raises(ValueError, match="invalid status"):
+        resolve_mission_frontier([{"id": "node", "dependencies": [], "status": "done"}])
+
+
+def test_readiness_assessment_accepts_default_reviewable_blueprint() -> None:
+    from mcp_and_crews.run_architect import build_blueprint
+
+    blueprint, _ = build_blueprint(
+        31,
+        "Build an auditable data export service",
+        "Generate and verify a bounded data export package with a reviewable manifest.",
+        dry_run=True,
+    )
+    report = assess_mission_readiness(blueprint.model_dump(mode="json"))
+    assert report["score"] >= 80
+    assert report["recommendation"] == "ready_for_human_review"
+    assert report["counts"]["blockers"] == 0
+    assert report["policy"]["generated_candidate_execution"] == "not_performed"
+    assert report["policy"]["human_review_required"] is True
+
+
+def test_readiness_assessment_flags_incomplete_and_ambiguous_blueprint() -> None:
+    report = assess_mission_readiness({
+        "mission_id": "issue-32",
+        "title": "",
+        "objective": "Do it.",
+        "steps": [
+            {"id": "a", "name": "A", "dependencies": ["b"]},
+            {"id": "b", "name": "B", "dependencies": ["a"]},
+        ],
+        "acceptance_criteria": ["Make it awesome"],
+        "constraints": [],
+        "risks": [],
+        "human_approval_required": False,
+    })
+    codes = {item["code"] for item in report["findings"]}
+    assert report["recommendation"] == "needs_revision"
+    assert report["counts"]["blockers"] >= 3
+    assert "title_invalid" in codes
+    assert "dependency_graph_invalid" in codes
+    assert "acceptance_criterion_ambiguous" in codes
+    assert "constraints_missing" in codes
+    assert "risks_missing" in codes
+    assert "human_gate_disabled" in codes
