@@ -14,7 +14,9 @@ import pytest
 from mcp_and_crews import mcp_stdio_server
 from mcp_and_crews.mcp_stdio_server import (
     assess_blueprint_readiness,
+    calculate_change_impact,
     calculate_mission_frontier,
+    calculate_recovery_plan,
     create_blueprint,
     generate_svg_spec,
     mission_schedule,
@@ -60,6 +62,23 @@ def test_mission_schedule_tool_returns_dependency_waves_and_critical_path() -> N
     assert result["waves"] == [["input"], ["left", "right"], ["merge"]]
     assert result["critical_path_length"] == 3
     assert result["max_parallelism"] == 2
+
+
+def test_impact_and_recovery_mcp_helpers_are_functional() -> None:
+    impact = calculate_change_impact(
+        [{"id": "source", "dependencies": []}, {"id": "consumer", "dependencies": ["source"]}],
+        ["source"],
+        ["consumer"],
+    )
+    assert impact["impacted_nodes"] == ["source", "consumer"]
+    assert impact["completed_outputs_to_invalidate"] == ["consumer"]
+
+    recovery = calculate_recovery_plan([{
+        "id": "source", "dependencies": [], "status": "failed",
+        "error_class": "transient", "idempotent": True,
+    }])
+    assert recovery["failed_nodes"][0]["action"] == "retry_candidate_after_backoff"
+    assert recovery["policy"]["automatic_retry_enabled"] is False
 
 
 def test_mission_frontier_tool_resolves_ready_and_failed_work() -> None:
@@ -153,7 +172,7 @@ def test_mcp_stdio_initialize_and_tools_list_handshake() -> None:
         response = _read_json_line(process)
         assert response.get("id") == 2
         names = {item["name"] for item in response["result"]["tools"]}
-        assert names == {"mission_validate", "public_api_search", "mission_blueprint", "mission_state", "svg_architecture_spec", "mission_schedule", "mission_artifact_integrity", "mission_frontier", "mission_readiness"}
+        assert names == {"mission_validate", "public_api_search", "mission_blueprint", "mission_state", "svg_architecture_spec", "mission_schedule", "mission_artifact_integrity", "mission_frontier", "mission_readiness", "mission_change_impact", "mission_recovery_plan"}
     finally:
         if process.stdin is not None:
             process.stdin.close()
