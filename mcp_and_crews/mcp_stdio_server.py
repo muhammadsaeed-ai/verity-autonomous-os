@@ -118,10 +118,15 @@ def mission_blueprint(issue_number: int, title: str, objective: str) -> dict[str
     return create_blueprint(issue_number, title, objective)
 
 
+def schedule_mission(steps: list[dict[str, Any]]) -> dict[str, Any]:
+    """Pure scheduling helper shared by the MCP tool and direct tests."""
+    return analyze_mission_dag(steps)
+
+
 @mcp.tool()
 def mission_schedule(steps: list[dict[str, Any]]) -> dict[str, Any]:
     """Analyze a bounded mission DAG and return parallel waves, critical path, and concurrency metrics."""
-    return analyze_mission_dag(steps)
+    return schedule_mission(steps)
 
 
 def verify_mission_artifacts(mission_id: str) -> dict[str, Any]:
