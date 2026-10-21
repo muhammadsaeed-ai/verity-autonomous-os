@@ -66,12 +66,12 @@ async function latestIssueWorkflowRun(workflow, issueNumber) {
   }
 }
 
-async function waitForBlueprint(issue, timeoutMs = 16 * 60 * 1000) {
+async function waitForBlueprint(issue, defaultBranch, timeoutMs = 16 * 60 * 1000) {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const current = await api(`issues/${issue.number}`);
     if ((current.labels || []).some((label) => label.name === "blueprint-ready")) {
-      const path = `contents/generated_artifacts/missions/issue-${issue.number}/blueprint.json?ref=main`;
+      const path = `contents/generated_artifacts/missions/issue-${issue.number}/blueprint.json?ref=${encodeURIComponent(defaultBranch)}`;
       const file = await api(path);
       const blueprint = JSON.parse(Buffer.from(file.content.replace(/\n/g, ""), "base64").toString("utf8"));
       const matchesIssue = Number(blueprint.issue_number) === issue.number || blueprint.mission_id === `issue-${issue.number}`;
@@ -155,7 +155,7 @@ try {
     );
   }
 
-  const { blueprintPath, blueprint } = await waitForBlueprint(issue);
+  const { blueprintPath, blueprint } = await waitForBlueprint(issue, defaultBranch);
   console.log(JSON.stringify({
     phase: "architect",
     status: "passed",
