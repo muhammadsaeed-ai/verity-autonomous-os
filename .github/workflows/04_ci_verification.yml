@@ -1,0 +1,35 @@
+name: "04 · CI verification"
+
+on:
+  push:
+    branches: ["main", "feat/verity-autonomous-os-v1"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VERITY_OFFLINE: "1"
+      VERITY_USE_CREWAI: "0"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+      - name: Set up Python
+        run: uv python install 3.11
+      - name: Install project and test dependencies
+        run: uv sync --group dev
+      - name: Run full test suite
+        run: uv run pytest -q
+      - name: Run CLI dry-run pipeline
+        run: |
+          uv run verity-architect --issue-number 0 --title "CI validation" --body "Verify deterministic CLI behavior." --output-dir /tmp/verity-ci-artifacts --state-path /tmp/verity-ci-state.json --dry-run
+          uv run verity-builder --issue-number 0 --output-dir /tmp/verity-ci-artifacts --state-path /tmp/verity-ci-state.json --dry-run
+      - name: Compile project source
+        run: uv run python -m compileall -q mcp_and_crews tests
