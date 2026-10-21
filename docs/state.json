@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "updated_at": null,
+  "status": "idle",
+  "phase": "idle",
+  "llm_provider": "deterministic",
+  "mission": null,
+  "dag": [],
+  "artifacts": [],
+  "errors": [],
+  "metrics": {"steps": 0, "completed": 0, "pending": 0, "failed": 0}
+}
