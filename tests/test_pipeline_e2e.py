@@ -29,9 +29,18 @@ def test_architect_builder_produces_a_verified_review_bundle(tmp_path: Path) -> 
     final = run_builder(issue_number=0, output_dir=artifacts, state_path=dashboard, dry_run=True)
     output = mission / "output"
     runner = output / "mission_runner.py"
+    solution = output / "mission_solution.py"
+    generator = json.loads((output / "generator.json").read_text(encoding="utf-8"))
     assert final.status == "ready_for_review"
     assert runner.is_file()
+    assert solution.is_file()
+    assert generator["provider"] == "deterministic"
+    assert generator["syntax"] == "valid"
+    assert generator["executed"] is False
+    assert "def solve(" in solution.read_text(encoding="utf-8")
+    compile(solution.read_text(encoding="utf-8"), str(solution), "exec")
     assert (output / "architecture.svg").read_text(encoding="utf-8").startswith("<svg")
+    assert (output / "mission.json").is_file()
     compile(runner.read_text(encoding="utf-8"), str(runner), "exec")
 
     result_file = output / "test-result.json"
