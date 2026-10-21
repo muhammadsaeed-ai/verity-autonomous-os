@@ -33,10 +33,10 @@ def analyze_change_impact(
     """
     _require_sequence(steps, "steps")
     changed = list(_require_sequence(changed_node_ids, "changed_node_ids"))
-    if len(changed) != len(set(changed)):
-        raise ValueError("changed_node_ids must not contain duplicates")
     if any(not isinstance(item, str) for item in changed):
         raise ValueError("changed_node_ids must contain strings")
+    if len(changed) != len(set(changed)):
+        raise ValueError("changed_node_ids must not contain duplicates")
 
     schedule = analyze_mission_dag(steps)
     by_id = {item["id"]: item for item in steps}
@@ -45,11 +45,13 @@ def analyze_change_impact(
     if missing:
         raise ValueError("Unknown changed node ids: " + ", ".join(missing))
 
-    completed = list(_require_sequence(completed_node_ids or [], "completed_node_ids"))
-    if len(completed) != len(set(completed)):
-        raise ValueError("completed_node_ids must not contain duplicates")
+    completed = list(_require_sequence(
+        [] if completed_node_ids is None else completed_node_ids, "completed_node_ids"
+    ))
     if any(not isinstance(item, str) for item in completed):
         raise ValueError("completed_node_ids must contain strings")
+    if len(completed) != len(set(completed)):
+        raise ValueError("completed_node_ids must not contain duplicates")
     unknown_completed = sorted(set(completed) - known)
     if unknown_completed:
         raise ValueError("Unknown completed node ids: " + ", ".join(unknown_completed))
