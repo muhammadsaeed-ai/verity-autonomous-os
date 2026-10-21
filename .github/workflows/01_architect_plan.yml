@@ -2,7 +2,7 @@ name: "01 · Architect mission plan"
 
 on:
   issues:
-    types: [labeled]
+    types: [opened, labeled]
 
 permissions:
   contents: write
@@ -10,22 +10,53 @@ permissions:
 
 jobs:
   architect:
-    if: github.event.label.name == 'new-project'
+    if: >-
+      (github.event.action == 'labeled' && github.event.label.name == 'new-project') ||
+      (github.event.action == 'opened' && startsWith(github.event.issue.title, '[Mission]'))
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       ISSUE_NUMBER: ${{ github.event.issue.number }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      VERITY_USE_CREWAI: "1"
+      VERITY_STRICT_LLM: "0"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+      - name: Ensure mission labels exist
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const definitions = [
+              {name: 'new-project', color: '2563eb', description: 'Plan a VerityAgent mission'},
+              {name: 'approved', color: '0e8a16', description: 'Human approved the mission blueprint'},
+              {name: 'blueprint-ready', color: '1d76db', description: 'Mission blueprint generated and ready for review'}
+            ];
+            for (const label of definitions) {
+              try {
+                await github.rest.issues.getLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label.name
+                });
+              } catch (error) {
+                if (error.status !== 404) throw error;
+                await github.rest.issues.createLabel({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  name: label.name,
+                  color: label.color,
+                  description: label.description
+                });
+              }
+            }
       - name: Install uv
         uses: astral-sh/setup-uv@v6
       - name: Set up Python
         run: uv python install 3.11
-      - name: Install core dependencies
-        run: uv sync --group dev
+      - name: Install core and CrewAI dependencies
+        run: uv sync --extra agency --group dev
       - name: Generate validated blueprint
         run: uv run verity-architect --issue-number "$ISSUE_NUMBER" --output-dir generated_artifacts --state-path docs/state.json
       - name: Commit blueprint and state
@@ -47,7 +78,7 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: number,
-              body: '## VerityAgent mission blueprint\n\nThe architecture phase completed. Review the committed blueprint and the generated file in the repository.\n\n' + blueprint + '\n\nWhen the plan is acceptable, apply the approved label to request a build. No mission code is merged automatically.'
+              body: '## VerityAgent mission blueprint\n\nThe architecture phase completed. Review the committed blueprint and generated file in the repository.\n\n' + blueprint + '\n\nWhen the plan is acceptable, apply the approved label to request a build. No mission code is merged automatically.'
             });
             await github.rest.issues.addLabels({
               owner: context.repo.owner,
