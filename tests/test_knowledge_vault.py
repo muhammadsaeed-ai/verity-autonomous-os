@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import yaml
@@ -39,6 +40,18 @@ def test_workflows_and_issue_form_parse_as_yaml() -> None:
     assert {p.name for p in paths if p.parent.name == "workflows"} == {
         "01_architect_plan.yml", "02_execute_build.yml", "03_daily_auto_agent.yml", "04_ci_verification.yml"
     }
+
+
+def test_external_github_actions_are_pinned_to_immutable_commits() -> None:
+    for path in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
+        document = yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+        for job in document.get("jobs", {}).values():
+            for step in job.get("steps", []):
+                action = step.get("uses")
+                if action and not action.startswith("./"):
+                    assert re.fullmatch(r"[^@]+@[0-9a-f]{40}", action), (
+                        f"{path.name} uses a mutable or unpinned action reference: {action}"
+                    )
 
 
 def test_privileged_issue_workflows_gate_untrusted_public_issues() -> None:
