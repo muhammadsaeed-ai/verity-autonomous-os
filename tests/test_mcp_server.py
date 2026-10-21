@@ -40,6 +40,38 @@ def test_blueprint_tool_returns_validated_structure() -> None:
     assert blueprint["acceptance_criteria"]
 
 
+def test_mission_schedule_tool_returns_dependency_waves_and_critical_path() -> None:
+    result = mission_schedule([
+        {"id": "input", "name": "Input", "dependencies": []},
+        {"id": "left", "name": "Left branch", "dependencies": ["input"]},
+        {"id": "right", "name": "Right branch", "dependencies": ["input"]},
+        {"id": "merge", "name": "Merge", "dependencies": ["left", "right"]},
+    ])
+    assert result["waves"] == [["input"], ["left", "right"], ["merge"]]
+    assert result["critical_path_length"] == 3
+    assert result["max_parallelism"] == 2
+
+
+def test_mission_artifact_integrity_tool_checks_repository_mission(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(mcp_stdio_server, "PROJECT_ROOT", tmp_path)
+    mission = tmp_path / "generated_artifacts" / "missions" / "issue-7"
+    (mission / "output").mkdir(parents=True)
+    (mission / "blueprint.json").write_text('{"mission_id":"issue-7"}\\n', encoding="utf-8")
+    (mission / "output" / "result.json").write_text('{"status":"passed"}\\n', encoding="utf-8")
+    write_artifact_manifest(
+        mission,
+        [Path("blueprint.json"), Path("output/result.json")],
+        Path("output/artifact_manifest.json"),
+        "issue-7",
+    )
+    checked = verify_mission_artifacts("issue-7")
+    assert checked["valid"] is True
+    assert checked["mission_id"] == "issue-7"
+    assert checked["checked"] == 2
+    with pytest.raises(ValueError, match="unsupported characters"):
+        verify_mission_artifacts("../outside")
+
+
 def test_state_reader_blocks_paths_outside_repository() -> None:
     assert read_mission_state("docs/not-created-yet.json")["available"] is False
     with pytest.raises(ValueError):
@@ -94,7 +126,7 @@ def test_mcp_stdio_initialize_and_tools_list_handshake() -> None:
         response = _read_json_line(process)
         assert response.get("id") == 2
         names = {item["name"] for item in response["result"]["tools"]}
-        assert names == {"mission_validate", "public_api_search", "mission_blueprint", "mission_state", "svg_architecture_spec"}
+        assert names == {"mission_validate", "public_api_search", "mission_blueprint", "mission_state", "svg_architecture_spec", "mission_schedule", "mission_artifact_integrity"}
     finally:
         if process.stdin is not None:
             process.stdin.close()
