@@ -324,7 +324,7 @@ button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(-
   </section>
 
   <section class="visual-grid reveal delay-1">
-    <article class="panel activity-panel">
+    <article class="panel activity-panel" id="artifacts">
       <div class="panel-head"><div><div class="panel-eyebrow">MISSION OUTPUTS</div><h4>Artifact registry</h4><p>Outputs recorded in the currently loaded state snapshot.</p></div><a class="text-link" href="https://github.com/muhammadsaeed-ai/verity-autonomous-os/tree/main/generated_artifacts" target="_blank" rel="noreferrer">Browse repo <svg viewBox="0 0 24 24"><path d="M7 17 17 7M7 7h10v10"/></svg></a></div>
       <div class="artifact-grid" id="artifact-list"></div>
     </article>
@@ -426,7 +426,7 @@ function renderGraph(){
 function renderStageList(){
  const container=$("stage-list");container.replaceChildren();
  nodes.forEach(function(node,index){
-  const button=document.createElement("button");button.type="button";button.className="stage-row";button.setAttribute("aria-pressed",node.id===selectedId?"true":"false");
+  const button=document.createElement("button");button.type="button";button.className="stage-row";button.dataset.nodeId=node.id;button.setAttribute("aria-pressed",node.id===selectedId?"true":"false");
   const number=document.createElement("span");number.className="stage-n";number.textContent=String(index+1).padStart(2,"0");
   const label=document.createElement("span");const name=document.createElement("span");name.className="stage-name";name.textContent=node.name;const sub=document.createElement("span");sub.className="stage-sub";sub.textContent=node.description||"No stage description recorded.";label.append(name,sub);
   const badge=document.createElement("span");badge.className="status "+cleanStatus(node.status);badge.textContent=cleanStatus(node.status).replace("_"," ");
