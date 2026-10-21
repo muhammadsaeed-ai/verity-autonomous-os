@@ -301,3 +301,245 @@ def verify_artifact_manifest(
             "manifest_sha256": None,
             "errors": [str(exc)],
         }
+
+
+def resolve_mission_frontier(nodes: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Resolve currently runnable work from dependency edges and persisted node states.
+
+    This is a pure decision function: it never invokes a node or changes any state.
+    Pending nodes whose dependency chain includes a failed/blocked node are reported
+    as effectively blocked even if their stored state is still pending.
+    """
+    if not isinstance(nodes, (list, tuple)):
+        raise ValueError("nodes must be a list")
+    if not nodes:
+        return {
+            "schema_version": 1,
+            "node_count": 0,
+            "ready": [],
+            "waiting": [],
+            "blocked": [],
+            "running": [],
+            "completed": [],
+            "failed": [],
+            "effective_statuses": {},
+            "terminal": False,
+            "healthy": True,
+            "has_ready_work": False,
+            "stalled": False,
+            "recommendation": "no_nodes",
+        }
+
+    normalized: list[dict[str, Any]] = []
+    valid_statuses = {"pending", "running", "completed", "blocked", "failed"}
+    for index, node in enumerate(nodes):
+        if not isinstance(node, Mapping):
+            raise ValueError(f"Node {index} must be an object")
+        node_id = node.get("id")
+        status = node.get("status", "pending")
+        if not isinstance(status, str) or status not in valid_statuses:
+            raise ValueError(f"Node {node_id!r} has an invalid status")
+        normalized.append({
+            "id": node_id,
+            "name": node.get("name", node_id),
+            "dependencies": node.get("dependencies", []),
+            "status": status,
+        })
+
+    schedule = analyze_mission_dag(normalized)
+    by_id = {node["id"]: node for node in normalized}
+    effective: dict[str, str] = {}
+    reasons: dict[str, list[str]] = {}
+
+    for node_id in schedule["topological_order"]:
+        node = by_id[node_id]
+        status = node["status"]
+        deps = node["dependencies"]
+        if status in {"completed", "running"}:
+            unfinished = [dep for dep in deps if effective.get(dep) != "completed"]
+            if unfinished:
+                raise ValueError(
+                    f"Node {node_id!r} is {status} but dependencies are not completed: "
+                    + ", ".join(unfinished)
+                )
+            effective[node_id] = status
+            continue
+        if status == "failed":
+            effective[node_id] = "failed"
+            reasons[node_id] = []
+            continue
+        if status == "blocked":
+            effective[node_id] = "blocked"
+            reasons[node_id] = []
+            continue
+
+        blockers = [dep for dep in deps if effective.get(dep) in {"failed", "blocked"}]
+        if blockers:
+            effective[node_id] = "blocked"
+            reasons[node_id] = blockers
+        elif all(effective.get(dep) == "completed" for dep in deps):
+            effective[node_id] = "ready"
+        else:
+            effective[node_id] = "waiting"
+
+    ready = [node_id for node_id in schedule["topological_order"] if effective[node_id] == "ready"]
+    waiting = [
+        {
+            "id": node_id,
+            "waiting_for": [
+                dep for dep in by_id[node_id]["dependencies"]
+                if effective.get(dep) != "completed"
+            ],
+        }
+        for node_id in schedule["topological_order"] if effective[node_id] == "waiting"
+    ]
+    blocked = [
+        {
+            "id": node_id,
+            "blocking_dependencies": reasons.get(node_id, []),
+            "reason": (
+                "Upstream dependency is failed or blocked."
+                if reasons.get(node_id)
+                else "Node is explicitly marked blocked; inspect its recorded diagnostics."
+            ),
+        }
+        for node_id in schedule["topological_order"] if effective[node_id] == "blocked"
+    ]
+    running = [node_id for node_id in schedule["topological_order"] if effective[node_id] == "running"]
+    completed = [node_id for node_id in schedule["topological_order"] if effective[node_id] == "completed"]
+    failed = [node_id for node_id in schedule["topological_order"] if effective[node_id] == "failed"]
+    terminal_states = {"completed", "failed", "blocked"}
+    terminal = len(effective) > 0 and all(status in terminal_states for status in effective.values())
+    healthy = not failed and not blocked
+
+    if failed or blocked:
+        recommendation = "investigate_blockers"
+    elif ready:
+        recommendation = "run_ready_nodes"
+    elif running:
+        recommendation = "wait_for_running_nodes"
+    elif terminal and len(completed) == len(effective):
+        recommendation = "mission_complete"
+    elif waiting:
+        recommendation = "inspect_dependency_state"
+    else:
+        recommendation = "no_work"
+
+    return {
+        "schema_version": 1,
+        "node_count": len(normalized),
+        "topological_order": schedule["topological_order"],
+        "ready": ready,
+        "waiting": waiting,
+        "blocked": blocked,
+        "running": running,
+        "completed": completed,
+        "failed": failed,
+        "effective_statuses": effective,
+        "terminal": terminal,
+        "healthy": healthy,
+        "has_ready_work": bool(ready),
+        "stalled": bool(waiting) and not ready and not running and not terminal,
+        "recommendation": recommendation,
+    }
+
+
+_OBSERVABLE_CRITERION_RE = re.compile(
+    r"\\b(verify|validat\\w*|return\\w*|contain\\w*|create\\w*|produce\\w*|reject\\w*|"
+    r"report\\w*|match\\w*|equal\\w*|raise\\w*|fail\\w*|pass\\w*|record\\w*|"
+    r"include\\w*|write\\w*|compile\\w*|test\\w*|given|when|then|must|shall|should|"
+    r"at least|at most|no more than|exactly)\\b|[<>]=?|\\b\\d+\\b",
+    re.IGNORECASE,
+)
+
+
+def assess_mission_readiness(blueprint: Mapping[str, Any]) -> dict[str, Any]:
+    """Apply transparent deterministic rules to assess a blueprint before review.
+
+    This is a triage aid, not a proof that requirements are correct. Every finding
+    explains its rule; no LLM or network call is made.
+    """
+    if not isinstance(blueprint, Mapping):
+        raise ValueError("blueprint must be an object")
+
+    findings: list[dict[str, str]] = []
+
+    def add(code: str, severity: str, message: str) -> None:
+        findings.append({"code": code, "severity": severity, "message": message})
+
+    title = blueprint.get("title")
+    if not isinstance(title, str) or not title.strip() or len(title.strip()) > 200:
+        add("title_invalid", "blocker", "Provide a non-empty mission title of at most 200 characters.")
+    objective = blueprint.get("objective")
+    if not isinstance(objective, str) or not objective.strip() or len(objective.strip()) > 4000:
+        add("objective_invalid", "blocker", "Provide a non-empty objective of at most 4,000 characters.")
+    elif len(objective.strip()) < 20:
+        add("objective_underspecified", "warning", "Objective is very short; define the expected outcome and boundaries.")
+
+    raw_steps = blueprint.get("steps")
+    if not isinstance(raw_steps, list) or not raw_steps:
+        add("steps_missing", "blocker", "Provide at least one bounded implementation step.")
+    else:
+        try:
+            schedule = analyze_mission_dag(raw_steps)
+            if schedule["node_count"] > 10:
+                add("scope_large", "warning", "Mission is near the 12-step schema limit; consider splitting it.")
+            if not schedule["dependency_edges"]:
+                add("no_dependencies", "info", "No dependency edges are defined; confirm that all steps are independent.")
+        except (TypeError, ValueError) as exc:
+            schedule = None
+            add("dependency_graph_invalid", "blocker", "Fix the mission dependency graph: " + str(exc))
+    if isinstance(raw_steps, list) and len(raw_steps) > _MAX_NODES:
+        add("step_limit_exceeded", "blocker", f"Use at most {_MAX_NODES} steps per mission.")
+
+    criteria = blueprint.get("acceptance_criteria")
+    if not isinstance(criteria, list) or not criteria or len(criteria) > 20:
+        add("acceptance_criteria_invalid", "blocker", "Provide between 1 and 20 acceptance criteria.")
+    else:
+        for index, criterion in enumerate(criteria, start=1):
+            if not isinstance(criterion, str) or not criterion.strip():
+                add("acceptance_criterion_empty", "blocker", f"Acceptance criterion {index} is empty or not text.")
+                continue
+            if len(criterion.strip()) < 12:
+                add("acceptance_criterion_short", "warning", f"Acceptance criterion {index} is too short to review reliably.")
+            if not _OBSERVABLE_CRITERION_RE.search(criterion):
+                add(
+                    "acceptance_criterion_ambiguous",
+                    "warning",
+                    f"Acceptance criterion {index} may be subjective; express a testable output, condition, or threshold.",
+                )
+
+    constraints = blueprint.get("constraints", [])
+    if not isinstance(constraints, list):
+        add("constraints_invalid", "blocker", "Constraints must be provided as a list.")
+    elif not constraints or not any(isinstance(item, str) and item.strip() for item in constraints):
+        add("constraints_missing", "warning", "Record relevant scope, privacy, integration, or operational constraints.")
+
+    risks = blueprint.get("risks", [])
+    if not isinstance(risks, list):
+        add("risks_invalid", "blocker", "Risks must be provided as a list.")
+    elif not risks or not any(isinstance(item, str) and item.strip() for item in risks):
+        add("risks_missing", "warning", "Record at least one risk or explicitly document why the mission has no material risks.")
+
+    if blueprint.get("human_approval_required", True) is not True:
+        add("human_gate_disabled", "blocker", "Human review must remain enabled before generated behavior is promoted.")
+
+    blockers = sum(item["severity"] == "blocker" for item in findings)
+    warnings = sum(item["severity"] == "warning" for item in findings)
+    infos = sum(item["severity"] == "info" for item in findings)
+    score = max(0, 100 - blockers * 30 - warnings * 8 - infos * 1)
+    recommendation = "needs_revision" if blockers or score < 80 else "ready_for_human_review"
+    return {
+        "schema_version": 1,
+        "mission_id": blueprint.get("mission_id"),
+        "score": score,
+        "recommendation": recommendation,
+        "counts": {"blockers": blockers, "warnings": warnings, "info": infos},
+        "findings": findings,
+        "policy": {
+            "generated_candidate_execution": "not_performed",
+            "human_review_required": True,
+            "method": "deterministic_rules_v1",
+            "interpretation": "Heuristic triage for review prioritization; not a proof of correctness or security.",
+        },
+    }
