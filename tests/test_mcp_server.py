@@ -13,6 +13,8 @@ import pytest
 
 from mcp_and_crews import mcp_stdio_server
 from mcp_and_crews.mcp_stdio_server import (
+    assess_blueprint_readiness,
+    calculate_mission_frontier,
     create_blueprint,
     generate_svg_spec,
     mission_schedule,
@@ -58,6 +60,23 @@ def test_mission_schedule_tool_returns_dependency_waves_and_critical_path() -> N
     assert result["waves"] == [["input"], ["left", "right"], ["merge"]]
     assert result["critical_path_length"] == 3
     assert result["max_parallelism"] == 2
+
+
+def test_mission_frontier_tool_resolves_ready_and_failed_work() -> None:
+    result = mcp_stdio_server.calculate_mission_frontier([
+        {"id": "source", "dependencies": [], "status": "failed"},
+        {"id": "consumer", "dependencies": ["source"], "status": "pending"},
+    ])
+    assert result["blocked"][0]["id"] == "consumer"
+    assert result["recommendation"] == "investigate_blockers"
+
+
+def test_mission_readiness_tool_returns_actionable_assessment() -> None:
+    blueprint = create_blueprint(43, "Create a report manifest", "Create and validate a reviewable report manifest with deterministic output.")
+    report = assess_blueprint_readiness(blueprint)
+    assert report["recommendation"] == "ready_for_human_review"
+    assert report["score"] >= 80
+    assert report["policy"]["method"] == "deterministic_rules_v1"
 
 
 def test_mission_artifact_integrity_tool_checks_repository_mission(tmp_path: Path, monkeypatch) -> None:
@@ -134,7 +153,7 @@ def test_mcp_stdio_initialize_and_tools_list_handshake() -> None:
         response = _read_json_line(process)
         assert response.get("id") == 2
         names = {item["name"] for item in response["result"]["tools"]}
-        assert names == {"mission_validate", "public_api_search", "mission_blueprint", "mission_state", "svg_architecture_spec", "mission_schedule", "mission_artifact_integrity"}
+        assert names == {"mission_validate", "public_api_search", "mission_blueprint", "mission_state", "svg_architecture_spec", "mission_schedule", "mission_artifact_integrity", "mission_frontier", "mission_readiness"}
     finally:
         if process.stdin is not None:
             process.stdin.close()
