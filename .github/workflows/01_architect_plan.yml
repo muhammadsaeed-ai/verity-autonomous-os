@@ -1,0 +1,57 @@
+name: "01 · Architect mission plan"
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  issues: write
+
+jobs:
+  architect:
+    if: github.event.label.name == 'new-project'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+      - name: Set up Python
+        run: uv python install 3.11
+      - name: Install core dependencies
+        run: uv sync --group dev
+      - name: Generate validated blueprint
+        run: uv run verity-architect --issue-number "$ISSUE_NUMBER" --output-dir generated_artifacts --state-path docs/state.json
+      - name: Commit blueprint and state
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add generated_artifacts/missions/issue-"$ISSUE_NUMBER" docs/state.json
+          git commit -m "docs: plan mission issue $ISSUE_NUMBER"
+          git push
+      - name: Add plan to issue and require approval
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const number = context.issue.number;
+            const path = 'generated_artifacts/missions/issue-' + number + '/blueprint.md';
+            const blueprint = fs.readFileSync(path, 'utf8');
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: number,
+              body: '## VerityAgent mission blueprint\n\nThe architecture phase completed. Review the committed blueprint and the generated file in the repository.\n\n' + blueprint + '\n\nWhen the plan is acceptable, apply the approved label to request a build. No mission code is merged automatically.'
+            });
+            await github.rest.issues.addLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: number,
+              labels: ['blueprint-ready']
+            });
