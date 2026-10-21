@@ -1,4 +1,4 @@
-"""FastMCP stdio server with nine tools and two knowledge resources."""
+"""FastMCP stdio server with eleven tools and two knowledge resources."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from mcp_and_crews.run_architect import build_blueprint
+from mcp_and_crews.mission_intelligence import analyze_change_impact, plan_mission_recovery
 from mcp_and_crews.mission_engine import (
     analyze_mission_dag,
     assess_mission_readiness,
@@ -154,6 +155,46 @@ def assess_blueprint_readiness(blueprint: dict[str, Any]) -> dict[str, Any]:
 def mission_readiness(blueprint: dict[str, Any]) -> dict[str, Any]:
     """Score a mission blueprint with deterministic rules and actionable review findings."""
     return assess_blueprint_readiness(blueprint)
+
+
+def calculate_change_impact(
+    steps: list[dict[str, Any]],
+    changed_node_ids: list[str],
+    completed_node_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    """Pure helper for downstream blast-radius and rerun-wave analysis."""
+    return analyze_change_impact(steps, changed_node_ids, completed_node_ids)
+
+
+@mcp.tool()
+def mission_change_impact(
+    steps: list[dict[str, Any]],
+    changed_node_ids: list[str],
+    completed_node_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    """Find transitive dependents, critical-path impact, and completed outputs to invalidate."""
+    return calculate_change_impact(steps, changed_node_ids, completed_node_ids)
+
+
+def calculate_recovery_plan(
+    nodes: list[dict[str, Any]],
+    max_retries: int = 2,
+    base_delay_seconds: int = 5,
+    max_delay_seconds: int = 300,
+) -> dict[str, Any]:
+    """Pure helper for safety-aware, non-executing retry and escalation advice."""
+    return plan_mission_recovery(nodes, max_retries, base_delay_seconds, max_delay_seconds)
+
+
+@mcp.tool()
+def mission_recovery_plan(
+    nodes: list[dict[str, Any]],
+    max_retries: int = 2,
+    base_delay_seconds: int = 5,
+    max_delay_seconds: int = 300,
+) -> dict[str, Any]:
+    """Recommend bounded recovery actions while preventing unsafe automatic retries."""
+    return calculate_recovery_plan(nodes, max_retries, base_delay_seconds, max_delay_seconds)
 
 
 def verify_mission_artifacts(mission_id: str) -> dict[str, Any]:
