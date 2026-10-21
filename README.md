@@ -111,6 +111,8 @@ Tools:
 - mission_schedule — validate and analyze a bounded dependency graph, returning deterministic parallel waves and critical-path metrics.
 - mission_frontier — identify runnable nodes, waiting dependencies, propagated blockers, and terminal mission state.
 - mission_readiness — assess scope, acceptance criteria, dependency integrity, constraints, and risks with deterministic review findings.
+- mission_change_impact — calculate downstream blast radius, critical-path overlap, invalidated completed outputs, and deterministic rerun waves after a planned node change.
+- mission_recovery_plan — classify failed nodes into safe retry candidates, manual review, permanent-failure escalation, or exhausted retry budget using bounded deterministic backoff advice.
 - mission_artifact_integrity — verify a locally generated mission’s SHA-256 artifact ledger without executing generated files.
 
 Resources:
@@ -134,6 +136,7 @@ knowledge_vault/
   public_apis_min.json
 mcp_and_crews/
   mission_engine.py
+  mission_intelligence.py
   schemas.py
   llm_factory.py
   code_generator.py
@@ -158,7 +161,7 @@ pyproject.toml
 
 ## Verification model
 
-The CI suite checks the public API registry, knowledge base, issue form and workflow YAML, dashboard JSON, nine MCP tools, repository path restrictions, SVG escaping, and a real stdio initialize/tools-list handshake. It also runs Architect → Builder end-to-end in deterministic mode, tests the generated-code screening rules and provider-error redaction, verifies privileged workflow authorization and immutable action pins, exercises deterministic DAG scheduling, live dependency-frontier resolution, mission-readiness assessments, detects artifact tampering and path traversal, verifies the MCP tool surface, compiles generated Python, and executes only the trusted inspection runner.
+The CI suite checks the public API registry, knowledge base, issue form and workflow YAML, dashboard JSON, eleven MCP tools, repository path restrictions, SVG escaping, and a real stdio initialize/tools-list handshake. It also runs Architect → Builder end-to-end in deterministic mode, tests the generated-code screening rules and provider-error redaction, verifies privileged workflow authorization and immutable action pins, exercises deterministic DAG scheduling, live dependency-frontier resolution, mission-readiness assessments, downstream change-impact analysis, safe recovery planning, detects artifact tampering and path traversal, verifies the MCP tool surface, compiles generated Python, and executes only the trusted inspection runner.
 
 The latest hosted GitHub Actions result is the source of truth for a commit. A successful pipeline means package generation and verification passed; it does not certify external API uptime or mission-specific production logic.
 
