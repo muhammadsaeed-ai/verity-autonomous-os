@@ -43,6 +43,19 @@ def test_architect_builder_produces_a_verified_review_bundle(tmp_path: Path) -> 
     assert (output / "mission.json").is_file()
     compile(runner.read_text(encoding="utf-8"), str(runner), "exec")
 
+    schedule = json.loads((output / "mission_schedule.json").read_text(encoding="utf-8"))
+    assert schedule["node_count"] == 5
+    assert schedule["critical_path_length"] >= 1
+    assert schedule["waves"]
+    verification = json.loads((output / "verification_report.json").read_text(encoding="utf-8"))
+    assert verification["result"] == "passed"
+    assert any(item["result"] == "not_run_by_design" for item in verification["checks"])
+    from mcp_and_crews.mission_engine import verify_artifact_manifest
+    integrity = verify_artifact_manifest(mission, "output/artifact_manifest.json")
+    assert integrity["valid"] is True
+    assert integrity["checked"] == integrity["expected"] == 10
+    assert "output/artifact_manifest.json" in final.artifacts
+
     result_file = output / "test-result.json"
     subprocess.run(
         [sys.executable, str(runner), "--output", str(result_file), "--print-json"],
