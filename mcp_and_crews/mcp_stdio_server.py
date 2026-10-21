@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
 from fastmcp import FastMCP
 
 from mcp_and_crews.run_architect import build_blueprint
+from mcp_and_crews.mission_engine import analyze_mission_dag, verify_artifact_manifest
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -114,6 +116,28 @@ def public_api_search(category: str | None = None) -> list[dict[str, Any]]:
 def mission_blueprint(issue_number: int, title: str, objective: str) -> dict[str, Any]:
     """Create a strict, deterministic mission blueprint."""
     return create_blueprint(issue_number, title, objective)
+
+
+@mcp.tool()
+def mission_schedule(steps: list[dict[str, Any]]) -> dict[str, Any]:
+    """Analyze a bounded mission DAG and return parallel waves, critical path, and concurrency metrics."""
+    return analyze_mission_dag(steps)
+
+
+def verify_mission_artifacts(mission_id: str) -> dict[str, Any]:
+    """Verify the registered artifact SHA-256 ledger for a locally generated mission."""
+    if not isinstance(mission_id, str) or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_-]{0,79}", mission_id):
+        raise ValueError("mission_id contains unsupported characters")
+    mission_root = PROJECT_ROOT / "generated_artifacts" / "missions" / mission_id
+    if not mission_root.resolve().is_relative_to((PROJECT_ROOT / "generated_artifacts" / "missions").resolve()):
+        raise ValueError("Mission path escapes the generated artifacts directory")
+    return verify_artifact_manifest(mission_root, "output/artifact_manifest.json")
+
+
+@mcp.tool()
+def mission_artifact_integrity(mission_id: str) -> dict[str, Any]:
+    """Verify the artifact ledger without executing generated mission files."""
+    return verify_mission_artifacts(mission_id)
 
 
 @mcp.tool()
