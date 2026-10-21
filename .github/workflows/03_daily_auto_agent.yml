@@ -1,0 +1,45 @@
+name: "03 · Daily autonomous maintenance"
+
+on:
+  schedule:
+    - cron: "30 2 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+      - name: Set up Python
+        run: uv python install 3.11
+      - name: Install verification dependencies
+        run: uv sync --group dev
+      - name: Run health and deterministic checks
+        run: |
+          uv run pytest -q
+          uv run verity-architect --issue-number 0 --title "Daily maintenance self-check" --body "Validate local deterministic planning." --output-dir /tmp/verity-maintenance-artifacts --state-path /tmp/verity-maintenance-state.json --dry-run
+          uv run verity-builder --issue-number 0 --output-dir /tmp/verity-maintenance-artifacts --state-path /tmp/verity-maintenance-state.json --dry-run
+      - name: Upload maintenance state
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verity-daily-maintenance
+          path: /tmp/verity-maintenance-state.json
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Open issue if maintenance failed
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = 'VerityAgent daily maintenance check failed';
+            const body = 'The scheduled health workflow failed. Inspect the failed run logs and rerun verification after addressing the reported error.';
+            await github.rest.issues.create({owner: context.repo.owner, repo: context.repo.repo, title, body});

@@ -1,0 +1,55 @@
+name: New VerityAgent Mission
+description: Propose a bounded mission for the VerityAgent Autonomous OS.
+title: "[Mission] "
+labels:
+  - new-project
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the outcome you need. Do not paste secrets, credentials, private customer data, or production tokens.
+  - type: input
+    id: objective
+    attributes:
+      label: Mission objective
+      description: What outcome should the agent prepare a plan for?
+      placeholder: Build a reviewable workflow that...
+    validations:
+      required: true
+  - type: textarea
+    id: requirements
+    attributes:
+      label: Requirements and context
+      description: Inputs, outputs, constraints, target users, and expected behavior.
+      placeholder: Explain intended behavior and constraints.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: List observable conditions that can be tested.
+      placeholder: |
+        - Given ...
+        - When ...
+        - Then ...
+    validations:
+      required: true
+  - type: textarea
+    id: constraints
+    attributes:
+      label: Constraints and safety considerations
+      description: Mention integrations, limits, privacy, and approvals.
+      placeholder: No deployment, no external messages, human review required...
+    validations:
+      required: false
+  - type: dropdown
+    id: urgency
+    attributes:
+      label: Priority
+      options:
+        - Normal
+        - High
+        - Critical
+    validations:
+      required: true
