@@ -57,7 +57,7 @@ The Builder writes these files under the mission-specific output directory:
 - **mission_runner.py** — a trusted inspection utility that produces a manifest and does not execute the implementation candidate.
 - **architecture.svg**, **mission.json**, and **README.md** — the visual DAG, validated mission contract, and package documentation.
 
-Generated source is syntax-checked and screened against a conservative import/call allowlist. That is a static screening layer, not a proof of security or correctness. Review the candidate and add mission-specific tests before running it in an environment with meaningful access.
+Generated source is syntax-checked and screened by a restricted AST policy. Static analysis is defense-in-depth, not a sandbox or proof of security/correctness; candidates are not executed by CI. Review the candidate, add mission-specific tests, and use an appropriately isolated environment before any manual execution.
 
 ## Model providers
 
@@ -78,10 +78,10 @@ Implementation source generation uses the direct Gemini/OpenAI provider path so 
 
 ## GitHub-native operating procedure
 
-1. Open an issue using the **New VerityAgent Mission** form. Its **[Mission]** title prefix starts planning automatically; applying the **new-project** label to an existing issue also starts planning.
+1. Open an issue using the **New VerityAgent Mission** form. For cost and write-permission safety, merely opening a public issue does not trigger the privileged planning job unless the author is the owner, a member, or a collaborator. The repository owner can explicitly authorize an outside request by applying **new-project**.
 2. Workflow 01 ensures the **new-project**, **approved**, and **blueprint-ready** labels exist, then commits blueprint.json, blueprint.md, and issue-specific state. It comments with the blueprint and applies blueprint-ready.
 3. Review the blueprint and acceptance criteria. Apply approved only after the plan is acceptable.
-4. Workflow 02 builds a bounded artifact package, validates generated source without executing it, runs compilation and tests, and opens a mission-specific pull request.
+4. Workflow 02 runs only after a trusted mission author or the repository owner authorizes the **approved** label. It builds a bounded artifact package, applies static checks without executing generated source, runs compilation and tests, and opens a mission-specific pull request.
 5. Review the generated package, add mission-specific tests, and merge manually only after your checks pass.
 
 Workflow 03 runs scheduled maintenance checks and opens an issue on failure. Workflow 04 runs on pushes, pull requests, and manual dispatch. GEMINI_API_KEY and OPENAI_API_KEY are optional repository secrets; deterministic checks do not need them.
@@ -142,12 +142,14 @@ tests/
   test_mcp_server.py
   test_pipeline_e2e.py
   test_code_generator.py
+  test_llm_factory.py
+  test_schemas.py
 pyproject.toml
 .env.example</code></pre>
 
 ## Verification model
 
-The CI suite checks the public API registry, knowledge base, issue form and workflow YAML, dashboard JSON, five MCP tools, repository path restrictions, SVG escaping, and a real stdio initialize/tools-list handshake. It also runs Architect → Builder end-to-end in deterministic mode, tests the generated-code screening rules, compiles generated Python, and executes only the trusted inspection runner.
+The CI suite checks the public API registry, knowledge base, issue form and workflow YAML, dashboard JSON, five MCP tools, repository path restrictions, SVG escaping, and a real stdio initialize/tools-list handshake. It also runs Architect → Builder end-to-end in deterministic mode, tests the generated-code screening rules and provider-error redaction, verifies privileged workflow authorization and immutable action pins, compiles generated Python, and executes only the trusted inspection runner.
 
 The latest hosted GitHub Actions result is the source of truth for a commit. A successful pipeline means package generation and verification passed; it does not certify external API uptime or mission-specific production logic.
 

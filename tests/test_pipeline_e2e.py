@@ -58,6 +58,26 @@ def test_architect_builder_produces_a_verified_review_bundle(tmp_path: Path) -> 
     assert snapshot["mission"]["human_approval_required"] is True
 
 
+def test_builder_rejects_state_with_mismatched_issue_identity(tmp_path: Path) -> None:
+    artifacts = tmp_path / "generated_artifacts"
+    mission_state = tmp_path / "docs" / "state.json"
+    run_architect(
+        issue_number=0,
+        title="Identity check",
+        description="Ensure a mismatched state cannot be built.",
+        output_dir=artifacts,
+        state_path=mission_state,
+        dry_run=True,
+    )
+    state_file = artifacts / "missions" / "local-validation" / "state.json"
+    payload = json.loads(state_file.read_text(encoding="utf-8"))
+    payload["issue_number"] = 123
+    state_file.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="issue numbers do not match"):
+        run_builder(issue_number=0, output_dir=artifacts, state_path=mission_state, dry_run=True)
+
+
 def test_builder_refuses_to_run_without_architect_state(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         run_builder(issue_number=77, output_dir=tmp_path / "generated_artifacts",

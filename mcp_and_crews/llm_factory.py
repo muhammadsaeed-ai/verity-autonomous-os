@@ -32,6 +32,25 @@ def deterministic_text(prompt: str, purpose: str = "general") -> str:
     return "Deterministic result for the supplied request: " + (excerpt or "no prompt supplied")
 
 
+def _safe_error_summary(provider: str, exc: Exception) -> str:
+    """Return a log-safe provider failure summary without URLs, response bodies, or secrets.
+
+    HTTP clients may include full request URLs in exception messages. Gemini credentials
+    are sent in a query parameter, so never persist or print str(exc).
+    """
+    if isinstance(exc, httpx.HTTPStatusError):
+        detail = "HTTP " + str(exc.response.status_code)
+    elif isinstance(exc, httpx.TimeoutException):
+        detail = "request timed out"
+    elif isinstance(exc, httpx.RequestError):
+        detail = "network request failed"
+    elif isinstance(exc, (ValueError, KeyError)):
+        detail = "invalid response or configuration"
+    else:
+        detail = type(exc).__name__
+    return provider + ": " + detail
+
+
 def _gemini(prompt: str) -> str:
     response = httpx.post(
         "https://generativelanguage.googleapis.com/v1beta/models/"
@@ -124,7 +143,7 @@ def complete_text(prompt: str, purpose: str = "general", dry_run: bool = False) 
         try:
             return CompletionResult(_crewai(prompt), "crewai")
         except Exception as exc:
-            failures.append("CrewAI: " + type(exc).__name__ + ": " + str(exc)[:200])
+            failures.append(_safe_error_summary("CrewAI", exc))
     providers = []
     if os.getenv("GEMINI_API_KEY"):
         providers.append(("gemini", _gemini))
@@ -134,7 +153,7 @@ def complete_text(prompt: str, purpose: str = "general", dry_run: bool = False) 
         try:
             return CompletionResult(function(prompt), name)
         except Exception as exc:
-            failures.append(name + ": " + type(exc).__name__ + ": " + str(exc)[:200])
+            failures.append(_safe_error_summary(name, exc))
     if failures and os.getenv("VERITY_STRICT_LLM", "0").lower() in {"1", "true", "yes"}:
         raise RuntimeError("Configured LLM provider failed: " + " | ".join(failures))
     return CompletionResult(
