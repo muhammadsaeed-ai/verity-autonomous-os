@@ -29,9 +29,9 @@ jobs:
       VERITY_STRICT_LLM: "0"
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
       - name: Set up Python
         run: uv python install 3.11
       - name: Install agency and verification dependencies
@@ -44,7 +44,7 @@ jobs:
           uv run pytest -q
       - name: Open review pull request
         id: cpr
-        uses: peter-evans/create-pull-request@v7
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           branch: agent/mission-${{ github.event.issue.number }}
           delete-branch: true
@@ -63,7 +63,7 @@ jobs:
           draft: false
       - name: Report pull request on the source issue
         if: steps.cpr.outputs.pull-request-url != ''
-        uses: actions/github-script@v7
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
             const number = context.issue.number;
