@@ -105,7 +105,9 @@ Tools:
 - public_api_search — query the local registry of unauthenticated public API examples.
 - mission_blueprint — create a validated deterministic blueprint.
 - mission_state — read repository-local state while rejecting path traversal.
-- svg_architecture_spec — create an SVG flow preview from node names.\n- mission_schedule — validate and analyze a bounded dependency graph, returning deterministic parallel waves and critical-path metrics.\n- mission_artifact_integrity — verify a locally generated mission’s SHA-256 artifact ledger without executing generated files.
+- svg_architecture_spec — create an SVG flow preview from node names.
+- mission_schedule — validate and analyze a bounded dependency graph, returning deterministic parallel waves and critical-path metrics.
+- mission_artifact_integrity — verify a locally generated mission’s SHA-256 artifact ledger without executing generated files.
 
 Resources:
 - vault://system-design
