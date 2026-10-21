@@ -143,6 +143,7 @@ tests/
   test_pipeline_e2e.py
   test_code_generator.py
   test_llm_factory.py
+  test_schemas.py
 pyproject.toml
 .env.example</code></pre>
 
