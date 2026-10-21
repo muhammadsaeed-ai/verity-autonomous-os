@@ -125,6 +125,10 @@ def run_builder(
     blueprint = MissionBlueprint.model_validate_json(blueprint_file.read_text(encoding="utf-8"))
     if state.mission_id != blueprint.mission_id:
         raise ValueError("State and blueprint mission identifiers do not match")
+    if state.issue_number != blueprint.issue_number:
+        raise ValueError("State and blueprint issue numbers do not match")
+    if state.title != blueprint.title:
+        raise ValueError("State and blueprint titles do not match")
     if state.status not in {"planned", "approved", "building"}:
         raise ValueError("Mission is not in a buildable state: " + state.status)
 
