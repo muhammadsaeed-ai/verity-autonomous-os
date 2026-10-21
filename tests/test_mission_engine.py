@@ -9,6 +9,8 @@ import pytest
 
 from mcp_and_crews.mission_engine import (
     analyze_mission_dag,
+    assess_mission_readiness,
+    resolve_mission_frontier,
     verify_artifact_manifest,
     write_artifact_manifest,
 )
