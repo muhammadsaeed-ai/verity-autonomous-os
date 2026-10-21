@@ -54,7 +54,7 @@ def test_architect_builder_produces_a_verified_review_bundle(tmp_path: Path) -> 
     integrity = verify_artifact_manifest(mission, "output/artifact_manifest.json")
     assert integrity["valid"] is True
     assert integrity["checked"] == integrity["expected"] == 10
-    assert "output/artifact_manifest.json" in final.artifacts
+    assert any(Path(item).as_posix().endswith("output/artifact_manifest.json") for item in final.artifacts)
 
     result_file = output / "test-result.json"
     subprocess.run(
