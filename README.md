@@ -18,7 +18,11 @@ VerityAgent Autonomous OS converts a structured GitHub Issue into a validated mi
 
 > **Engineering contract:** CI can verify schemas, syntax, the trusted inspection runner, and the offline pipeline. It does not prove that generated domain logic is correct or that a requested business outcome has happened. Model-generated source is not executed by CI, merged, or deployed automatically.
 
-## System map
+## Visual command center
+
+The redesigned [command center source](docs/index.html) is a responsive, dependency-free operations dashboard with an animated mission-network hero, clickable SVG execution graph, state-derived completion ring and per-stage chart, an animated lifecycle infographic with replay control, artifact registry, and compact platform architecture panels. It honors reduced-motion preferences and displays a preview state until a mission snapshot is published. The visual architecture below is also available as a standalone SVG infographic.
+
+To publish the dashboard as a site, open repository Settings → Pages, choose Deploy from a branch, select <code>main</code> and <code>/docs</code>, and save.
 
 ![Mission pipeline](docs/assets/architecture.svg)
 
