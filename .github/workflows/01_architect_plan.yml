@@ -10,9 +10,23 @@ permissions:
 
 jobs:
   architect:
+    # Public issues are untrusted: never spend configured LLM secrets or write to
+    # the repository merely because an anonymous user opens a [Mission] issue.
+    # The owner can explicitly authorize an outsider's request by applying the label.
     if: >-
-      (github.event.action == 'labeled' && github.event.label.name == 'new-project') ||
-      (github.event.action == 'opened' && startsWith(github.event.issue.title, '[Mission]'))
+      (
+        github.event.action == 'labeled' &&
+        github.event.label.name == 'new-project' &&
+        (
+          github.event.sender.login == github.repository_owner ||
+          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+        )
+      ) ||
+      (
+        github.event.action == 'opened' &&
+        startsWith(github.event.issue.title, '[Mission]') &&
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
