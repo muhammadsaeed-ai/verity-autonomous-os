@@ -11,9 +11,17 @@ from pathlib import Path
 
 import pytest
 
+from mcp_and_crews import mcp_stdio_server
 from mcp_and_crews.mcp_stdio_server import (
-    create_blueprint, generate_svg_spec, read_mission_state, search_public_apis, validate_mission
+    create_blueprint,
+    generate_svg_spec,
+    mission_schedule,
+    read_mission_state,
+    search_public_apis,
+    validate_mission,
+    verify_mission_artifacts,
 )
+from mcp_and_crews.mission_engine import write_artifact_manifest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -56,7 +64,7 @@ def test_mission_artifact_integrity_tool_checks_repository_mission(tmp_path: Pat
     monkeypatch.setattr(mcp_stdio_server, "PROJECT_ROOT", tmp_path)
     mission = tmp_path / "generated_artifacts" / "missions" / "issue-7"
     (mission / "output").mkdir(parents=True)
-    (mission / "blueprint.json").write_text('{"mission_id":"issue-7"}\\n', encoding="utf-8")
+    (mission / "blueprint.json").write_text('{"mission_id":"issue-7"}\n', encoding="utf-8")
     (mission / "output" / "result.json").write_text('{"status":"passed"}\\n', encoding="utf-8")
     write_artifact_manifest(
         mission,
