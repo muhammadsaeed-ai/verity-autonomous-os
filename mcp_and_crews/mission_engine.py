@@ -445,10 +445,10 @@ def resolve_mission_frontier(nodes: Sequence[Mapping[str, Any]]) -> dict[str, An
 
 
 _OBSERVABLE_CRITERION_RE = re.compile(
-    r"\\b(verify|validat\\w*|return\\w*|contain\\w*|create\\w*|produce\\w*|reject\\w*|"
-    r"report\\w*|match\\w*|equal\\w*|raise\\w*|fail\\w*|pass\\w*|record\\w*|"
-    r"include\\w*|write\\w*|compile\\w*|test\\w*|given|when|then|must|shall|should|"
-    r"at least|at most|no more than|exactly)\\b|[<>]=?|\\b\\d+\\b",
+    r"\b(verif\w*|validat\w*|return\w*|contain\w*|create\w*|produce\w*|reject\w*|"
+    r"report\w*|match\w*|equal\w*|raise\w*|fail\w*|pass\w*|record\w*|"
+    r"include\w*|write\w*|compile\w*|test\w*|isolat\w*|automated|bounded|review\w*|"
+    r"given|when|then|must|shall|should|at least|at most|no more than|exactly)\b|[<>]=?|\b\d+\b",
     re.IGNORECASE,
 )
 
