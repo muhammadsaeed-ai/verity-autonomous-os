@@ -80,7 +80,7 @@ def _openai(prompt: str) -> str:
 
 
 def _crewai(prompt: str) -> str:
-    """Optional CrewAI planner; provider failures fall back to the regular provider chain."""
+    """Optional CrewAI planning phase; code candidates use direct provider output."""
     from crewai import Agent, Crew, Process, Task
 
     if os.getenv("GEMINI_API_KEY"):
@@ -108,7 +108,7 @@ def _crewai(prompt: str) -> str:
 
 
 def complete_text(prompt: str, purpose: str = "general", dry_run: bool = False) -> CompletionResult:
-    """Try CrewAI when enabled, Gemini, OpenAI, then deterministic fallback.
+    """Try CrewAI for planning, Gemini, OpenAI, then deterministic fallback.
 
     VERITY_OFFLINE=1 guarantees no network access. VERITY_STRICT_LLM=1 surfaces provider errors.
     """
@@ -116,7 +116,11 @@ def complete_text(prompt: str, purpose: str = "general", dry_run: bool = False) 
         return CompletionResult(deterministic_text(prompt, purpose), "deterministic")
     failures: list[str] = []
     configured = bool(os.getenv("GEMINI_API_KEY") or os.getenv("OPENAI_API_KEY"))
-    if os.getenv("VERITY_USE_CREWAI", "0").lower() in {"1", "true", "yes"} and configured:
+    if (
+        purpose != "builder_code"
+        and os.getenv("VERITY_USE_CREWAI", "0").lower() in {"1", "true", "yes"}
+        and configured
+    ):
         try:
             return CompletionResult(_crewai(prompt), "crewai")
         except Exception as exc:

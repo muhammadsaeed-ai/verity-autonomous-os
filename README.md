@@ -14,9 +14,9 @@
 
 </div>
 
-VerityAgent Autonomous OS converts a structured GitHub Issue into a validated mission blueprint, persists auditable state, generates a bounded artifact package, runs deterministic verification, and opens a pull request for human review. GitHub Actions is the execution plane; GitHub Issues provide the human state machine; GitHub Pages serves a zero-build command center.
+VerityAgent Autonomous OS converts a structured GitHub Issue into a validated mission blueprint, persists auditable state, generates a reviewable implementation candidate, verifies the package, and opens a pull request for human review. GitHub Actions is the execution plane; GitHub Issues provide the human state machine; GitHub Pages can serve the zero-build command center from the repository's docs folder.
 
-> **Engineering contract:** a successful build verifies the generated package; it does not prove the requested business outcome has happened. No persistent application server is required, and generated code is not automatically merged or deployed.
+> **Engineering contract:** CI can verify schemas, syntax, the trusted inspection runner, and the offline pipeline. It does not prove that generated domain logic is correct or that a requested business outcome has happened. Model-generated source is not executed by CI, merged, or deployed automatically.
 
 ## System map
 
@@ -26,8 +26,8 @@ VerityAgent Autonomous OS converts a structured GitHub Issue into a validated mi
 |---|---|
 | Mission intake | A structured Issue captures objective, requirements, acceptance criteria, and constraints. |
 | Architect | Validates inputs, creates a Pydantic blueprint, writes issue-scoped state, and publishes a dependency DAG. |
-| Human gate | A maintainer reviews the blueprint and applies the approved label. |
-| Builder | Emits a runnable inspection runner, JSON manifest, SVG dependency map, and package runbook under generated_artifacts. |
+| Human gate | A maintainer reviews the blueprint and applies the **approved** label. |
+| Builder | Produces a **mission_solution.py** candidate, validation report, inspection runner, JSON manifest, SVG dependency map, and package guide. |
 | Verification | Pytest, Python compilation, manifest checks, YAML parsing, and MCP stdio handshake tests verify the core pipeline. |
 | Command center | docs/index.html renders state from docs/state.json without a frontend build step. |
 | Model routing | Gemini, then OpenAI, then deterministic fallback; offline mode makes no network calls. |
@@ -46,34 +46,47 @@ Run the deterministic pipeline locally. These commands require no API key and do
 <pre><code>uv run verity-architect --issue-number 0 --title "Internal reporting mission" --body "Generate a reviewable reporting package." --output-dir /tmp/verity-artifacts --state-path /tmp/verity-state.json --dry-run
 uv run verity-builder --issue-number 0 --output-dir /tmp/verity-artifacts --state-path /tmp/verity-state.json --dry-run</code></pre>
 
-The builder writes an inspection runner to the mission artifact directory. Running the generated package emits a manifest; the starter intentionally does not execute mission-specific external side effects.
+The Builder writes these files under the mission-specific output directory:
+
+- **mission_solution.py** — a provider-generated local implementation candidate, or a deterministic contract implementation when offline or no LLM key is available.
+- **generator.json** — provider, syntax-check, safety-check, and fallback metadata.
+- **mission_runner.py** — a trusted inspection utility that produces a manifest and does not execute the implementation candidate.
+- **architecture.svg**, **mission.json**, and **README.md** — the visual DAG, validated mission contract, and package documentation.
+
+Generated source is syntax-checked and screened against a conservative import/call allowlist. That is a static screening layer, not a proof of security or correctness. Review the candidate and add mission-specific tests before running it in an environment with meaningful access.
 
 ## Model providers
 
-Copy .env.example to your local environment and export variables in your shell or configure repository secrets. Never commit API keys.
+Set the environment variables in your shell or configure repository secrets. Never commit API keys.
 
 | Priority | Environment variable | Behavior |
 |---|---|---|
 | 1 | GEMINI_API_KEY | Uses Gemini generate-content when configured. |
 | 2 | OPENAI_API_KEY | Tries OpenAI Chat Completions if Gemini is absent or fails. |
-| 3 | No key required | Uses deterministic, repeatable planning notes and remains testable offline. |
+| 3 | No key required | Uses deterministic, repeatable planning and candidate generation, suitable for CI and offline checks. |
 
-Set VERITY_OFFLINE=1 to guarantee no provider network call. Set VERITY_STRICT_LLM=1 to raise when a configured provider fails rather than falling back. The optional agency extra enables CrewAI orchestration:
+Set VERITY_OFFLINE=1 to guarantee no provider network call. Set VERITY_STRICT_LLM=1 to raise when a configured provider fails rather than falling back. CrewAI can orchestrate the planning phase when the optional extra and a provider key are available:
 
 <pre><code>uv sync --extra agency --group dev
 export VERITY_USE_CREWAI=1</code></pre>
 
-Core schemas, state transitions, verification, and artifact generation do not depend on CrewAI being available.
+Implementation source generation uses the direct Gemini/OpenAI provider path so its output can be statically validated. Core schemas, state transitions, verification, and fallback generation do not depend on CrewAI being available.
 
 ## GitHub-native operating procedure
 
-1. Open a mission using the New VerityAgent Mission Issue form, or apply the new-project label to an existing issue.
-2. Workflow 01 validates the issue and commits blueprint.json, blueprint.md, and issue-specific state. It adds the blueprint-ready label.
+1. Open an issue using the **New VerityAgent Mission** form. Its **[Mission]** title prefix starts planning automatically; applying the **new-project** label to an existing issue also starts planning.
+2. Workflow 01 ensures the **new-project**, **approved**, and **blueprint-ready** labels exist, then commits blueprint.json, blueprint.md, and issue-specific state. It comments with the blueprint and applies blueprint-ready.
 3. Review the blueprint and acceptance criteria. Apply approved only after the plan is acceptable.
-4. Workflow 02 builds a bounded artifact package, runs compilation and tests, and opens a mission-specific pull request.
-5. Review the generated package, implement domain-specific behavior, and merge manually only after your checks pass.
+4. Workflow 02 builds a bounded artifact package, validates generated source without executing it, runs compilation and tests, and opens a mission-specific pull request.
+5. Review the generated package, add mission-specific tests, and merge manually only after your checks pass.
 
 Workflow 03 runs scheduled maintenance checks and opens an issue on failure. Workflow 04 runs on pushes, pull requests, and manual dispatch. GEMINI_API_KEY and OPENAI_API_KEY are optional repository secrets; deterministic checks do not need them.
+
+## Command center / GitHub Pages
+
+The interactive, responsive dashboard is in docs/index.html; its companion state is docs/state.json, and its architecture artwork is docs/assets/architecture.svg. The page reads the JSON beside it and has a built-in preview fallback.
+
+To publish it through GitHub Pages, open **Repository Settings → Pages**, select **Deploy from a branch**, choose **main** and **/docs**, and save. The source files are committed; publishing is a repository setting and must be enabled by a repository administrator.
 
 ## FastMCP tools and resources
 
@@ -110,6 +123,7 @@ knowledge_vault/
 mcp_and_crews/
   schemas.py
   llm_factory.py
+  code_generator.py
   mcp_stdio_server.py
   run_architect.py
   run_builder.py
@@ -123,20 +137,21 @@ tests/
   test_knowledge_vault.py
   test_mcp_server.py
   test_pipeline_e2e.py
+  test_code_generator.py
 pyproject.toml
 .env.example</code></pre>
 
 ## Verification model
 
-The CI suite checks the public API registry, knowledge base, issue form and workflow YAML, dashboard JSON, five MCP tools, repository path restrictions, SVG escaping, and a real stdio initialize/tools-list handshake. It also runs Architect → Builder end-to-end in deterministic mode, compiles generated Python, and executes the generated manifest runner.
+The CI suite checks the public API registry, knowledge base, issue form and workflow YAML, dashboard JSON, five MCP tools, repository path restrictions, SVG escaping, and a real stdio initialize/tools-list handshake. It also runs Architect → Builder end-to-end in deterministic mode, tests the generated-code screening rules, compiles generated Python, and executes only the trusted inspection runner.
 
-The latest hosted GitHub Actions result remains the source of truth for a commit. A successful pipeline means package generation and verification passed; it is not a guarantee of third-party API uptime or mission-specific production logic.
+The latest hosted GitHub Actions result is the source of truth for a commit. A successful pipeline means package generation and verification passed; it does not certify external API uptime or mission-specific production logic.
 
 ## Security and operational boundaries
 
 - Issue text, model output, tool results, and API responses are untrusted data.
 - Generated mission output stays under the issue-scoped generated_artifacts/missions directory.
-- The builder does not run issue-supplied shell commands or edit workflows.
+- The Builder does not run issue-supplied shell commands or edit workflows.
 - Provider failures are recorded as warnings unless strict mode is enabled.
 - State does not contain provider credentials.
 - Pull-request review remains the promotion boundary. There is no automatic deployment or self-merge.

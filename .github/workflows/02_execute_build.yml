@@ -13,11 +13,13 @@ jobs:
   build:
     if: github.event.label.name == 'approved'
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
       ISSUE_NUMBER: ${{ github.event.issue.number }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      VERITY_USE_CREWAI: "1"
+      VERITY_STRICT_LLM: "0"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -45,9 +47,9 @@ jobs:
 
             This pull request contains isolated output from the Builder phase.
 
-            - Generated Python compiles and its manifest was exercised.
-            - The artifacts are a reviewable starter package, not proof the requested business outcome is complete.
-            - No deployment, external messages, or production side effects are performed.
+            - Generated Python compiles, and the trusted inspection runner was exercised.
+            - Model-generated source was statically checked and not executed by CI.
+            - The artifacts are a reviewable candidate, not proof the requested business outcome is complete.
             - Human review is required before promoting generated behavior.
 
             Source mission: #${{ github.event.issue.number }}
@@ -63,5 +65,5 @@ jobs:
               owner: context.repo.owner,
               repo: context.repo.repo,
               issue_number: number,
-              body: 'The builder verified its generated artifacts and opened a pull request for human review: ' + url
+              body: 'The builder validated its generated artifacts and opened a pull request for human review: ' + url
             });
