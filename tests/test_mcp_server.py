@@ -65,7 +65,7 @@ def test_mission_artifact_integrity_tool_checks_repository_mission(tmp_path: Pat
     mission = tmp_path / "generated_artifacts" / "missions" / "issue-7"
     (mission / "output").mkdir(parents=True)
     (mission / "blueprint.json").write_text('{"mission_id":"issue-7"}\n', encoding="utf-8")
-    (mission / "output" / "result.json").write_text('{"status":"passed"}\\n', encoding="utf-8")
+    (mission / "output" / "result.json").write_text('{"status":"passed"}\n', encoding="utf-8")
     write_artifact_manifest(
         mission,
         [Path("blueprint.json"), Path("output/result.json")],
