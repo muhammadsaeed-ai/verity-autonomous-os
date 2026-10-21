@@ -13,9 +13,17 @@ from mcp_and_crews.schemas import MissionBlueprint
 
 _ALLOWED_IMPORTS = {
     "__future__", "argparse", "collections", "dataclasses", "datetime", "decimal", "enum",
-    "functools", "itertools", "json", "math", "operator", "re", "statistics", "typing",
+    "functools", "itertools", "json", "math", "re", "statistics", "typing",
 }
-_FORBIDDEN_CALLS = {"eval", "exec", "compile", "open", "__import__", "breakpoint"}
+_FORBIDDEN_CALLS = {
+    "eval", "exec", "compile", "open", "__import__", "breakpoint",
+    "getattr", "hasattr", "setattr", "delattr", "vars", "globals", "locals", "dir",
+    "input", "help",
+}
+_FORBIDDEN_NAMES = _FORBIDDEN_CALLS | {
+    "__builtins__", "__loader__", "__spec__", "__file__", "__package__", "__cached__",
+}
+_FORBIDDEN_ATTRIBUTES = {"system", "popen", "spawn", "fork", "connect", "urlopen"}
 _MAX_SOURCE_BYTES = 24_000
 
 
@@ -137,11 +145,19 @@ def validate_source(source: str) -> None:
             module = (node.module or "").split(".", 1)[0]
             if module not in _ALLOWED_IMPORTS:
                 raise ValueError("Import is not allowed in generated candidates: " + module)
-        elif isinstance(node, ast.Call):
-            if isinstance(node.func, ast.Name) and node.func.id in _FORBIDDEN_CALLS:
+        elif isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            if node.func.id in _FORBIDDEN_CALLS:
                 raise ValueError("Unsafe call is not allowed in generated candidates: " + node.func.id)
-        elif isinstance(node, ast.Attribute) and node.attr in {"system", "popen", "spawn", "fork", "connect", "urlopen"}:
-            raise ValueError("Potentially side-effecting API is not allowed in generated candidates: " + node.attr)
+        elif isinstance(node, ast.Name):
+            # Keep the normal main-guard name, but disallow access to module internals.
+            is_dunder = node.id.startswith("__") and node.id.endswith("__") and node.id != "__name__"
+            if node.id in _FORBIDDEN_NAMES or is_dunder:
+                raise ValueError("Introspection or dynamic execution symbol is not allowed: " + node.id)
+        elif isinstance(node, ast.Attribute):
+            if node.attr.startswith("__") and node.attr.endswith("__"):
+                raise ValueError("Dunder attribute access is not allowed in generated candidates: " + node.attr)
+            if node.attr in _FORBIDDEN_ATTRIBUTES:
+                raise ValueError("Potentially side-effecting API is not allowed in generated candidates: " + node.attr)
 
 
 def generate_candidate(blueprint: MissionBlueprint, dry_run: bool = False) -> CodeCandidate:
