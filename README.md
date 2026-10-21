@@ -55,7 +55,8 @@ The Builder writes these files under the mission-specific output directory:
 - **mission_solution.py** — a provider-generated local implementation candidate, or a deterministic contract implementation when offline or no LLM key is available.
 - **generator.json** — provider, syntax-check, safety-check, and fallback metadata.
 - **mission_runner.py** — a trusted inspection utility that produces a manifest and does not execute the implementation candidate.
-- **architecture.svg**, **mission.json**, and **README.md** — the visual DAG, validated mission contract, and package documentation.\n- **mission_schedule.json** — deterministic topological waves, estimated critical path, ready set, dependency-edge count, and theoretical parallelism metrics. These are plan estimates; they do not execute tasks concurrently.
+- **architecture.svg**, **mission.json**, and **README.md** — the visual DAG, validated mission contract, and package documentation.
+- **mission_schedule.json** — deterministic topological waves, estimated critical path, ready set, dependency-edge count, and theoretical parallelism metrics. These are plan estimates; they do not execute tasks concurrently.
 - **verification_report.json** — machine-readable checks and an explicit record that generated candidate execution was intentionally skipped.
 - **artifact_manifest.json** — SHA-256 digests, sizes, and a canonical ledger seal for the blueprint and generated package files.
 
