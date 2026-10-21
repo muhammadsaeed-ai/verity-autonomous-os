@@ -11,7 +11,14 @@ permissions:
 
 jobs:
   build:
-    if: github.event.label.name == 'approved'
+    # Building is a privileged, LLM-backed operation. Require a trusted mission
+    # author or the repository owner to explicitly apply the approved label.
+    if: >-
+      github.event.label.name == 'approved' &&
+      (
+        github.event.sender.login == github.repository_owner ||
+        contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association)
+      )
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
