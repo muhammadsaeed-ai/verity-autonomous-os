@@ -40,6 +40,24 @@ def test_generated_source_rejects_unsafe_calls() -> None:
         validate_source("def solve(payload: dict) -> dict:\n    return eval('1 + 1')\n")
 
 
+def test_generated_source_rejects_dunder_attribute_introspection() -> None:
+    source = "def solve(payload: dict) -> dict:\n    return ().__class__.__mro__\n"
+    with pytest.raises(ValueError, match="Dunder attribute access"):
+        validate_source(source)
+
+
+def test_generated_source_rejects_reflection_helpers() -> None:
+    source = "def solve(payload: dict) -> dict:\n    return getattr(payload, '__class__')\n"
+    with pytest.raises(ValueError, match="Unsafe call"):
+        validate_source(source)
+
+
+def test_generated_source_rejects_operator_introspection_helper() -> None:
+    source = "import operator\ndef solve(payload: dict) -> dict:\n    return operator.attrgetter('__class__')(payload)\n"
+    with pytest.raises(ValueError, match="Import is not allowed"):
+        validate_source(source)
+
+
 def test_generated_source_requires_solve_function() -> None:
     with pytest.raises(ValueError, match="must define solve"):
         validate_source("def main():\n    return {'ok': True}\n")
