@@ -47,13 +47,18 @@ def test_architect_builder_produces_a_verified_review_bundle(tmp_path: Path) -> 
     assert schedule["node_count"] == 5
     assert schedule["critical_path_length"] >= 1
     assert schedule["waves"]
+    readiness = json.loads((output / "mission_readiness.json").read_text(encoding="utf-8"))
+    assert readiness["recommendation"] == "ready_for_human_review"
+    assert readiness["score"] >= 80
+    assert readiness["counts"]["blockers"] == 0
     verification = json.loads((output / "verification_report.json").read_text(encoding="utf-8"))
     assert verification["result"] == "passed"
+    assert any(item["name"] == "mission_readiness_policy" for item in verification["checks"])
     assert any(item["result"] == "not_run_by_design" for item in verification["checks"])
     from mcp_and_crews.mission_engine import verify_artifact_manifest
     integrity = verify_artifact_manifest(mission, "output/artifact_manifest.json")
     assert integrity["valid"] is True
-    assert integrity["checked"] == integrity["expected"] == 10
+    assert integrity["checked"] == integrity["expected"] == 11
     assert any(Path(item).as_posix().endswith("output/artifact_manifest.json") for item in final.artifacts)
 
     result_file = output / "test-result.json"
