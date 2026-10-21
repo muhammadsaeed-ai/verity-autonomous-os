@@ -41,6 +41,25 @@ def test_workflows_and_issue_form_parse_as_yaml() -> None:
     }
 
 
+def test_privileged_issue_workflows_gate_untrusted_public_issues() -> None:
+    architect = yaml.load(
+        (ROOT / ".github" / "workflows" / "01_architect_plan.yml").read_text(encoding="utf-8"),
+        Loader=yaml.BaseLoader,
+    )
+    builder = yaml.load(
+        (ROOT / ".github" / "workflows" / "02_execute_build.yml").read_text(encoding="utf-8"),
+        Loader=yaml.BaseLoader,
+    )
+    architect_guard = architect["jobs"]["architect"]["if"]
+    builder_guard = builder["jobs"]["build"]["if"]
+    for guard in (architect_guard, builder_guard):
+        assert "github.repository_owner" in guard
+        assert "author_association" in guard
+        assert "OWNER" in guard and "MEMBER" in guard and "COLLABORATOR" in guard
+    assert "github.event.action == 'opened'" in architect_guard
+    assert "github.event.label.name == 'approved'" in builder_guard
+
+
 def test_initial_dashboard_state_is_valid_json() -> None:
     state = json.loads((ROOT / "docs" / "state.json").read_text(encoding="utf-8"))
     assert state["schema_version"] == 1
