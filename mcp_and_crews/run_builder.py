@@ -147,7 +147,8 @@ def run_builder(
         "source_file": solution.name,
         "source_bytes": len(candidate.source.encode("utf-8")),
         "syntax": "valid",
-        "safety_checks": "static_import_and_call_allowlist",
+        "safety_checks": "restricted_ast_policy_not_a_sandbox",
+        "validation_limit": "Static analysis is defense-in-depth only; the generated candidate was not executed.",
         "executed": False,
         "warning": candidate.warning,
     }
@@ -174,14 +175,15 @@ def run_builder(
         "**Mission:** " + blueprint.title, "",
         "**Mission ID:** " + blueprint.mission_id, "",
         "## Implementation candidate", "",
-        "The file mission_solution.py contains the generated local implementation candidate. CI validates its syntax and a conservative import/call allowlist, but intentionally does not execute model-generated source. Review the code and add domain-specific tests before running it.",
+        "The file mission_solution.py contains the generated local implementation candidate. CI applies restricted AST checks as defense-in-depth, but static analysis is not a sandbox and cannot guarantee arbitrary Python is safe. CI intentionally does not execute model-generated source. Review the code, add domain-specific tests, and use an appropriately isolated environment before any manual execution.",
         "", "## Planned work", "",
     ]
     runbook.extend("- **" + step.name + "** — " + step.objective for step in blueprint.steps)
     runbook.extend([
         "", "## Safety boundary", "",
         "The trusted mission runner emits a validation manifest. It does not execute mission_solution.py, deploy services, "
-        "contact external systems, or run shell commands supplied by an issue.",
+        "contact external systems, or run shell commands supplied by an issue. Static AST checks are defense-in-depth, "
+        "not a sandbox or guarantee of safe execution; review and test candidates in an isolated environment.",
         "", "## Inspect generated package", "",
         "<pre><code>python mission_runner.py --output mission_execution.json --print-json</code></pre>",
         "", "Review and test domain-specific behavior before production use.", "",
