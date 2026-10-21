@@ -10,7 +10,7 @@ from typing import Any
 from fastmcp import FastMCP
 
 from mcp_and_crews.run_architect import build_blueprint
-from mcp_and_crews.mission_engine import analyze_mission_dag, verify_artifact_manifest
+from mcp_and_crews.mission_engine import (\n    analyze_mission_dag, assess_mission_readiness, resolve_mission_frontier, verify_artifact_manifest\n)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -127,6 +127,28 @@ def schedule_mission(steps: list[dict[str, Any]]) -> dict[str, Any]:
 def mission_schedule(steps: list[dict[str, Any]]) -> dict[str, Any]:
     """Analyze a bounded mission DAG and return parallel waves, critical path, and concurrency metrics."""
     return schedule_mission(steps)
+
+
+def calculate_mission_frontier(nodes: list[dict[str, Any]]) -> dict[str, Any]:
+    """Pure helper for dependency-aware status resolution."""
+    return resolve_mission_frontier(nodes)
+
+
+@mcp.tool()
+def mission_frontier(nodes: list[dict[str, Any]]) -> dict[str, Any]:
+    """Resolve ready, waiting, and dependency-blocked work from current node statuses."""
+    return calculate_mission_frontier(nodes)
+
+
+def assess_blueprint_readiness(blueprint: dict[str, Any]) -> dict[str, Any]:
+    """Pure helper for deterministic mission-readiness assessment."""
+    return assess_mission_readiness(blueprint)
+
+
+@mcp.tool()
+def mission_readiness(blueprint: dict[str, Any]) -> dict[str, Any]:
+    """Score a mission blueprint with deterministic rules and actionable review findings."""
+    return assess_blueprint_readiness(blueprint)
 
 
 def verify_mission_artifacts(mission_id: str) -> dict[str, Any]:
