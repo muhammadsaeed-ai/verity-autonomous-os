@@ -10,7 +10,12 @@ import sys
 from pathlib import Path
 
 from mcp_and_crews.code_generator import generate_candidate, validate_source
-from mcp_and_crews.mission_engine import (\n    analyze_mission_dag, assess_mission_readiness, verify_artifact_manifest, write_artifact_manifest\n)
+from mcp_and_crews.mission_engine import (
+    analyze_mission_dag,
+    assess_mission_readiness,
+    verify_artifact_manifest,
+    write_artifact_manifest,
+)
 from mcp_and_crews.run_architect import dashboard_snapshot
 from mcp_and_crews.schemas import DAGNode, MissionBlueprint, MissionState, utc_now
 
