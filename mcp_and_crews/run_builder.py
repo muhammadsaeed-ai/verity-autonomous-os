@@ -1,4 +1,4 @@
-"""Phase 2 CLI: create a runnable and reviewable package from a validated blueprint."""
+"""Phase 2 CLI: create a reviewable package from a validated blueprint."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from mcp_and_crews.code_generator import generate_candidate, validate_source
 from mcp_and_crews.run_architect import dashboard_snapshot
 from mcp_and_crews.schemas import DAGNode, MissionBlueprint, MissionState, utc_now
 
@@ -18,6 +19,7 @@ def _mission_id(issue_number: int) -> str:
 
 
 def _architecture_svg(blueprint: MissionBlueprint) -> str:
+    """Render a dependency view directly from validated blueprint nodes."""
     width = max(760, len(blueprint.steps) * 210)
     height = 210
     gap = (width - 140) / max(1, len(blueprint.steps) - 1)
@@ -49,12 +51,16 @@ def _architecture_svg(blueprint: MissionBlueprint) -> str:
             '<text x="' + str(x) + '" y="' + str(y + 14) + '" text-anchor="middle" fill="#7dd3fc" '
             'font-size="9" font-family="Arial,sans-serif">' + str(index + 1).zfill(2) + '</text></g>'
         )
-    parts.append('<text x="26" y="' + str(height - 15) + '" fill="#94a3b8" font-size="10" font-family="Arial,sans-serif">Generated from the validated blueprint; dependencies are directional.</text>')
+    parts.append(
+        '<text x="26" y="' + str(height - 15) + '" fill="#94a3b8" font-size="10" '
+        'font-family="Arial,sans-serif">Generated from the validated blueprint; dependencies are directional.</text>'
+    )
     parts.append("</svg>")
     return "\n".join(parts)
 
 
 def _runner_source(blueprint: MissionBlueprint) -> str:
+    """Build a trusted inspection runner, separate from candidate implementation."""
     titles = [step.name for step in blueprint.steps]
     steps = [
         {
@@ -78,7 +84,7 @@ def _runner_source(blueprint: MissionBlueprint) -> str:
         "        'status': 'ready_for_human_review',\n"
         "        'generated_at': datetime.now(timezone.utc).isoformat(),\n"
         "        'executed_task_logic': False,\n"
-        "        'notice': 'This starter records the validated plan; mission-specific side effects require reviewed implementation.',\n"
+        "        'notice': 'This runner validates the package only; mission-specific code is not executed.',\n"
         "        'steps': STEPS,\n"
         "    }\n\n"
         "def main() -> int:\n"
@@ -91,7 +97,7 @@ def _runner_source(blueprint: MissionBlueprint) -> str:
         "    args.output.write_text(json.dumps(manifest, indent=2) + '\\n', encoding='utf-8')\n"
         "    print('Mission package: ' + MISSION_TITLE)\n"
         "    print('Planned steps: ' + str(len(PLANNED_STEP_TITLES)))\n"
-        "    print('State: ready_for_human_review; no mission side effects were run.')\n"
+        "    print('State: ready_for_human_review; mission implementation was not executed.')\n"
         "    print('Manifest: ' + str(args.output))\n"
         "    if args.print_json:\n        print(json.dumps(manifest, indent=2))\n"
         "    return 0\n\n"
@@ -105,6 +111,7 @@ def run_builder(
     state_path: Path | str = Path("docs/state.json"),
     dry_run: bool = False,
 ) -> MissionState:
+    """Build artifacts, compile-check model source, and only run trusted inspection code."""
     mission_dir = Path(output_dir) / "missions" / _mission_id(issue_number)
     state_file = mission_dir / "state.json"
     blueprint_file = mission_dir / "blueprint.json"
@@ -113,6 +120,7 @@ def run_builder(
             "No architect state found for " + _mission_id(issue_number)
             + ". Run the architect phase first and review its blueprint."
         )
+
     state = MissionState.model_validate_json(state_file.read_text(encoding="utf-8"))
     blueprint = MissionBlueprint.model_validate_json(blueprint_file.read_text(encoding="utf-8"))
     if state.mission_id != blueprint.mission_id:
@@ -127,6 +135,31 @@ def run_builder(
 
     output = mission_dir / "output"
     output.mkdir(parents=True, exist_ok=True)
+
+    candidate = generate_candidate(blueprint, dry_run=dry_run)
+    solution = output / "mission_solution.py"
+    solution.write_text(candidate.source, encoding="utf-8")
+    validate_source(candidate.source)
+    compile(candidate.source, str(solution), "exec")
+
+    generator_report = {
+        "provider": candidate.provider,
+        "source_file": solution.name,
+        "source_bytes": len(candidate.source.encode("utf-8")),
+        "syntax": "valid",
+        "safety_checks": "static_import_and_call_allowlist",
+        "executed": False,
+        "warning": candidate.warning,
+    }
+    (output / "generator.json").write_text(
+        json.dumps(generator_report, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+    if candidate.warning:
+        state.errors.append(candidate.warning)
+    if candidate.provider != "deterministic":
+        state.llm_provider = candidate.provider
+
     runner = output / "mission_runner.py"
     runner.write_text(_runner_source(blueprint), encoding="utf-8")
     svg = output / "architecture.svg"
@@ -135,19 +168,23 @@ def run_builder(
         json.dumps(blueprint.model_dump(mode="json"), indent=2, ensure_ascii=False) + "\n",
         encoding="utf-8",
     )
+
     runbook = [
-        "# Generated Mission Package", "", "**Mission:** " + blueprint.title, "",
-        "**Mission ID:** " + blueprint.mission_id, "", "## Purpose", "", blueprint.objective,
+        "# Generated Mission Package", "",
+        "**Mission:** " + blueprint.title, "",
+        "**Mission ID:** " + blueprint.mission_id, "",
+        "## Implementation candidate", "",
+        "The file mission_solution.py contains the generated local implementation candidate. CI validates its syntax and a conservative import/call allowlist, but intentionally does not execute model-generated source. Review the code and add domain-specific tests before running it.",
         "", "## Planned work", "",
     ]
     runbook.extend("- **" + step.name + "** — " + step.objective for step in blueprint.steps)
     runbook.extend([
         "", "## Safety boundary", "",
-        "The runner records the validated plan and emits a manifest. It does not deploy services, contact "
-        "external systems, run shell commands supplied by an issue, or claim the mission itself is complete.",
-        "", "## Run", "",
+        "The trusted mission runner emits a validation manifest. It does not execute mission_solution.py, deploy services, "
+        "contact external systems, or run shell commands supplied by an issue.",
+        "", "## Inspect generated package", "",
         "<pre><code>python mission_runner.py --output mission_execution.json --print-json</code></pre>",
-        "", "Review and implement domain-specific behavior before production use.", "",
+        "", "Review and test domain-specific behavior before production use.", "",
     ])
     (output / "README.md").write_text("\n".join(runbook), encoding="utf-8")
 
@@ -158,11 +195,11 @@ def run_builder(
         check=False, capture_output=True, text=True, timeout=15,
     )
     if check.returncode != 0:
-        raise RuntimeError("Generated runner verification failed: " + (check.stderr.strip() or check.stdout.strip()))
+        raise RuntimeError("Trusted runner verification failed: " + (check.stderr.strip() or check.stdout.strip()))
     manifest = json.loads(check_path.read_text(encoding="utf-8"))
     check_path.unlink()
     if manifest.get("mission_id") != blueprint.mission_id or manifest.get("executed_task_logic") is not False:
-        raise ValueError("Generated runner did not produce a valid safe manifest")
+        raise ValueError("Trusted runner did not produce a valid inspection manifest")
 
     state.dag = [
         DAGNode(
@@ -175,8 +212,14 @@ def run_builder(
     state.phase = "builder"
     state.updated_at = utc_now()
     state.artifacts = [
-        (mission_dir / "blueprint.json").as_posix(), (mission_dir / "blueprint.md").as_posix(),
-        runner.as_posix(), svg.as_posix(), (output / "mission.json").as_posix(), (output / "README.md").as_posix(),
+        (mission_dir / "blueprint.json").as_posix(),
+        (mission_dir / "blueprint.md").as_posix(),
+        solution.as_posix(),
+        (output / "generator.json").as_posix(),
+        runner.as_posix(),
+        svg.as_posix(),
+        (output / "mission.json").as_posix(),
+        (output / "README.md").as_posix(),
     ]
     state_file.write_text(json.dumps(state.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8")
     dashboard = Path(state_path)
@@ -193,7 +236,7 @@ def main() -> int:
     parser.add_argument("--issue-number", type=int, default=0)
     parser.add_argument("--output-dir", type=Path, default=Path("generated_artifacts"))
     parser.add_argument("--state-path", type=Path, default=Path("docs/state.json"))
-    parser.add_argument("--dry-run", action="store_true", help="Use local, deterministic behavior.")
+    parser.add_argument("--dry-run", action="store_true", help="Use local deterministic behavior.")
     args = parser.parse_args()
     state = run_builder(
         issue_number=args.issue_number, output_dir=args.output_dir,
