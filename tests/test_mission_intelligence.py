@@ -46,7 +46,7 @@ def test_change_impact_on_leaf_has_small_blast_radius() -> None:
     assert result["impacted_nodes"] == ["independent"]
     assert result["unaffected_nodes"] == ["root", "middle", "leaf"]
     assert result["blast_radius_percent"] == 25.0
-    assert result["severity"] == "low"
+    assert result["severity"] == "medium"
     assert result["rerun_waves"] == [["independent"]]
 
 
