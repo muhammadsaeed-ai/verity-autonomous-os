@@ -1,0 +1,67 @@
+name: "02 · Build approved mission"
+
+on:
+  issues:
+    types: [labeled]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+jobs:
+  build:
+    if: github.event.label.name == 'approved'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+      - name: Set up Python
+        run: uv python install 3.11
+      - name: Install agency and verification dependencies
+        run: uv sync --extra agency --group dev
+      - name: Build isolated mission package
+        run: uv run verity-builder --issue-number "$ISSUE_NUMBER" --output-dir generated_artifacts --state-path docs/state.json
+      - name: Verify generated Python and manifests
+        run: |
+          uv run python -m compileall -q generated_artifacts/missions/issue-"$ISSUE_NUMBER"/output
+          uv run pytest -q
+      - name: Open review pull request
+        id: cpr
+        uses: peter-evans/create-pull-request@v7
+        with:
+          branch: agent/mission-${{ github.event.issue.number }}
+          delete-branch: true
+          title: "VerityAgent: mission build #${{ github.event.issue.number }}"
+          body: |
+            ## VerityAgent generated mission package
+
+            This pull request contains isolated output from the Builder phase.
+
+            - Generated Python compiles and its manifest was exercised.
+            - The artifacts are a reviewable starter package, not proof the requested business outcome is complete.
+            - No deployment, external messages, or production side effects are performed.
+            - Human review is required before promoting generated behavior.
+
+            Source mission: #${{ github.event.issue.number }}
+          draft: false
+      - name: Report pull request on the source issue
+        if: steps.cpr.outputs.pull-request-url != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const number = context.issue.number;
+            const url = '${{ steps.cpr.outputs.pull-request-url }}';
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: number,
+              body: 'The builder verified its generated artifacts and opened a pull request for human review: ' + url
+            });
