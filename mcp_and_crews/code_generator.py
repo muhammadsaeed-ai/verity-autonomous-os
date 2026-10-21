@@ -12,7 +12,7 @@ from mcp_and_crews.schemas import MissionBlueprint
 
 
 _ALLOWED_IMPORTS = {
-    "argparse", "collections", "dataclasses", "datetime", "decimal", "enum",
+    "__future__", "argparse", "collections", "dataclasses", "datetime", "decimal", "enum",
     "functools", "itertools", "json", "math", "operator", "re", "statistics", "typing",
 }
 _FORBIDDEN_CALLS = {"eval", "exec", "compile", "open", "__import__", "breakpoint"}
