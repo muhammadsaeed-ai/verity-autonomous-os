@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 
 from mcp_and_crews.code_generator import generate_candidate, validate_source
+from mcp_and_crews.mission_engine import analyze_mission_dag, verify_artifact_manifest, write_artifact_manifest
 from mcp_and_crews.run_architect import dashboard_snapshot
 from mcp_and_crews.schemas import DAGNode, MissionBlueprint, MissionState, utc_now
 
@@ -174,6 +175,13 @@ def run_builder(
         encoding="utf-8",
     )
 
+    schedule = analyze_mission_dag([step.model_dump(mode="json") for step in blueprint.steps])
+    schedule_path = output / "mission_schedule.json"
+    schedule_path.write_text(
+        json.dumps(schedule, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
     runbook = [
         "# Generated Mission Package", "",
         "**Mission:** " + blueprint.title, "",
@@ -183,6 +191,15 @@ def run_builder(
         "", "## Planned work", "",
     ]
     runbook.extend("- **" + step.name + "** — " + step.objective for step in blueprint.steps)
+    runbook.extend([
+        "", "## Deterministic dependency schedule", "",
+        "The schedule is calculated from the validated DAG, not generated prose. Independent nodes share a wave; "
+        "the critical path uses unit-cost steps and is a planning estimate, not a runtime measurement.", "",
+        "- Waves: " + str(len(schedule["waves"])),
+        "- Maximum wave parallelism: " + str(schedule["max_parallelism"]),
+        "- Critical path length: " + str(schedule["critical_path_length"]),
+        "- Critical path: " + " → ".join(schedule["critical_path"]),
+    ])
     runbook.extend([
         "", "## Safety boundary", "",
         "The trusted mission runner emits a validation manifest. It does not execute mission_solution.py, deploy services, "
@@ -207,6 +224,46 @@ def run_builder(
     if manifest.get("mission_id") != blueprint.mission_id or manifest.get("executed_task_logic") is not False:
         raise ValueError("Trusted runner did not produce a valid inspection manifest")
 
+    verification_report = {
+        "schema_version": 1,
+        "mission_id": blueprint.mission_id,
+        "result": "passed",
+        "checks": [
+            {"name": "blueprint_schema", "result": "passed", "detail": "Pydantic blueprint validated before build."},
+            {"name": "state_identity", "result": "passed", "detail": "Mission ID, issue number, and title match."},
+            {"name": "candidate_static_policy", "result": "passed", "detail": "Restricted AST policy accepted the candidate; not a sandbox."},
+            {"name": "candidate_syntax", "result": "passed", "detail": "Candidate compiled without execution."},
+            {"name": "trusted_runner", "result": "passed", "detail": "Only the trusted inspection runner was executed."},
+            {"name": "inspection_manifest", "result": "passed", "detail": "Runner output matches the mission ID and declares task logic unexecuted."},
+            {"name": "generated_candidate_execution", "result": "not_run_by_design", "detail": "Model-generated candidate was not executed."},
+        ],
+    }
+    verification_report_path = output / "verification_report.json"
+    verification_report_path.write_text(
+        json.dumps(verification_report, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
+
+    artifact_paths = [
+        Path("blueprint.json"),
+        Path("blueprint.md"),
+        Path("output/mission_solution.py"),
+        Path("output/generator.json"),
+        Path("output/mission_runner.py"),
+        Path("output/architecture.svg"),
+        Path("output/mission.json"),
+        Path("output/README.md"),
+        Path("output/mission_schedule.json"),
+        Path("output/verification_report.json"),
+    ]
+    artifact_manifest_path = output / "artifact_manifest.json"
+    write_artifact_manifest(
+        mission_dir, artifact_paths, artifact_manifest_path, blueprint.mission_id
+    )
+    integrity = verify_artifact_manifest(mission_dir, "output/artifact_manifest.json")
+    if not integrity["valid"]:
+        raise ValueError("Artifact integrity verification failed: " + "; ".join(integrity["errors"]))
+
     state.dag = [
         DAGNode(
             id=node.id, name=node.name, description=node.description, dependencies=node.dependencies,
@@ -226,6 +283,9 @@ def run_builder(
         svg.as_posix(),
         (output / "mission.json").as_posix(),
         (output / "README.md").as_posix(),
+        schedule_path.as_posix(),
+        verification_report_path.as_posix(),
+        artifact_manifest_path.as_posix(),
     ]
     state_file.write_text(json.dumps(state.model_dump(mode="json"), indent=2) + "\n", encoding="utf-8")
     dashboard = Path(state_path)
