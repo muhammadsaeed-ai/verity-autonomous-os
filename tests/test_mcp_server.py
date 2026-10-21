@@ -49,7 +49,7 @@ def test_blueprint_tool_returns_validated_structure() -> None:
 
 
 def test_mission_schedule_tool_returns_dependency_waves_and_critical_path() -> None:
-    result = mission_schedule([
+    result = mcp_stdio_server.schedule_mission([
         {"id": "input", "name": "Input", "dependencies": []},
         {"id": "left", "name": "Left branch", "dependencies": ["input"]},
         {"id": "right", "name": "Right branch", "dependencies": ["input"]},
