@@ -126,4 +126,7 @@ def test_integration_script_refuses_to_target_its_own_repository() -> None:
     script = (ROOT / "scripts/privileged_workflow_integration.mjs").read_text(encoding="utf-8")
     assert "target.toLowerCase() === source.toLowerCase()" in script
     assert "OWNER" in script and "MEMBER" in script and "COLLABORATOR" in script
-    assert "pull_request" not in script.lower() or "pull request" in script.lower()
+    assert "target.toLowerCase() === source.toLowerCase()" in script
+    assert "state: " + '"closed"' in script
+    assert "merged_at" in script
+    assert "process.exitCode = 1" in script
