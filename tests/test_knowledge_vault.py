@@ -33,12 +33,13 @@ def test_architecture_knowledge_is_substantive() -> None:
 def test_workflows_and_issue_form_parse_as_yaml() -> None:
     paths = sorted((ROOT / ".github" / "workflows").glob("*.yml"))
     paths.append(ROOT / ".github" / "ISSUE_TEMPLATE" / "new_mission.yml")
-    assert len(paths) == 5
+    assert len(paths) == 6
     for path in paths:
         document = yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
         assert isinstance(document, dict) and document, path.name
     assert {p.name for p in paths if p.parent.name == "workflows"} == {
-        "01_architect_plan.yml", "02_execute_build.yml", "03_daily_auto_agent.yml", "04_ci_verification.yml"
+        "01_architect_plan.yml", "02_execute_build.yml", "03_daily_auto_agent.yml",
+        "04_ci_verification.yml", "05_privileged_integration.yml"
     }
 
 

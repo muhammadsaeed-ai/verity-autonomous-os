@@ -33,3 +33,5 @@ jobs:
           uv run verity-builder --issue-number 0 --output-dir /tmp/verity-ci-artifacts --state-path /tmp/verity-ci-state.json --dry-run
       - name: Compile project source
         run: uv run python -m compileall -q mcp_and_crews tests
+      - name: Validate isolated GitHub integration script syntax
+        run: node --check scripts/privileged_workflow_integration.mjs

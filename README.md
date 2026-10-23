@@ -165,6 +165,25 @@ The CI suite checks the public API registry, knowledge base, issue form and work
 
 The latest hosted GitHub Actions result is the source of truth for a commit. A successful pipeline means package generation and verification passed; it does not certify external API uptime or mission-specific production logic.
 
+
+
+## Isolated privileged-workflow integration test
+
+CI checks the authorization truth table and validates that privileged workflows require the expected labels and trusted-author/owner conditions. To exercise the actual GitHub issue events, repository writes, blueprint commit, approval label, build checks, and review-PR creation, use the manual-only sandbox harness in `.github/workflows/05_privileged_integration.yml`.
+
+**Never point this harness at the production repository.** Create a separate disposable repository from this project, with `01_architect_plan.yml` and `02_execute_build.yml` installed on its default branch. Use an unprotected test default branch because the Architect test workflow deliberately commits its blueprint there. Leave provider keys unset in the sandbox so model orchestration uses the documented deterministic fallback and does not incur API costs. Do not store production secrets in the sandbox.
+
+In the source repository settings:
+
+1. Add Actions variable `VERITY_AUTONOMOUS_OS_TEST_REPO` with the sandbox `owner/name`.
+2. Add Actions secret `VERITY_AUTONOMOUS_OS_TEST_TOKEN` using a fine-grained token scoped only to that sandbox repository. It needs **Issues: read/write**, **Contents: read**, **Pull requests: read/write**, and **Actions: read**. The token owner must be a collaborator/owner of the sandbox, so the real `issues` event is authorized by the same policy the test is validating.
+3. Under Actions on the `main` branch, manually run **05 · Isolated privileged workflow integration**. Choose `architect_only` to verify issue-to-blueprint, or `full_pipeline` to additionally apply `approved` and verify a build pull request is opened, not merged.
+4. On success, the harness closes the test issue and test PR. The sandbox commit and Actions history remain for review. On failure, it leaves the issue open and prints the sandbox issue link for diagnosis.
+
+The harness runs only from `main` when dispatched by the repository owner, has read-only permissions in this repository, and refuses to target the source repository. It does not use `pull_request_target`, does not merge generated output, and never executes generated mission code. The integration token is never passed to the mission workflows; writes in the sandbox are performed by that sandbox repository's own narrowly configured `GITHUB_TOKEN`.
+
+A true outside-user event still requires a separate outsider account and a manual/controlled issue in the disposable repository. The automated policy matrix covers the negative author-association and label/sender cases without granting the integration harness an outsider identity.
+
 ## Security and operational boundaries
 
 - Issue text, model output, tool results, and API responses are untrusted data.
